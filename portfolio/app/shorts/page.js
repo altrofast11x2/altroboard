@@ -607,7 +607,7 @@ export default function ShortsPage() {
         }
         .s-pc-item {
           position:relative;
-          width:min(560px, calc((100vh - 130px) * 9/16));
+          width:min(680px, calc((100vh - 130px) * 9/16));
           height:calc(100vh - 130px);
           border-radius:18px; overflow:hidden;
           background:#000;
