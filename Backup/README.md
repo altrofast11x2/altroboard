@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # hyeonjun.dev — 개인 홈페이지
 
 Next.js App Router 기반 풀스택 개인 홈페이지
@@ -52,6 +51,3 @@ vercel --prod
 npm install @vercel/kv
 # vercel.json에 KV 설정 추가
 ```
-=======
-https://altroboard.vercel.app/
->>>>>>> 8e76807c8725d6e34bcdb571e1d885dd28f8e669
