@@ -1,9 +1,0 @@
-{
-  "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/keepalive",
-      "schedule": "0 0 * * 1"
-    }
-  ]
-}
