@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 
 // 무거운 컴포넌트는 lazy load — 초기 페이지 렌더 가속
@@ -11,6 +11,12 @@ const Chatbot         = lazy(() => import('./components/Chatbot'))
 // 인스타그램 스타일 단일 컬럼 피드
 // - 메인: 스토리바 + 게시글 카드(한 칸당 하나, 사진 큼) 세로 나열
 // - 사이드: 추천 사용자 (데스크탑 only)
+//
+// 좋아요 표시:
+// - getPosts() 가 이미 likeCount 를 함께 내려준다.
+// - 로그인 유저는 본인이 좋아요 누른 여부도 별도로 한 번 조회.
+// - 게시글 더블클릭 시 하트 토글 (Instagram 스타일 펄스 애니메이션).
+// - 비로그인 유저는 좋아요 버튼 클릭 시 "로그인 안내" 모달.
 
 export default function Home() {
   const router = useRouter()
@@ -18,13 +24,34 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [likedState, setLikedState] = useState({}) // postId -> { count, liked }
   const [user, setUser] = useState(null)
+  const [loginPrompt, setLoginPrompt] = useState(false)
+  const [pulseId, setPulseId] = useState(null)     // 더블클릭 시 큰 하트 펄스 표시할 postId
+  const lastTapRef = useRef({})                    // postId -> last tap time (모바일 더블탭 폴백)
 
   useEffect(() => {
     const raw = localStorage.getItem('user')
-    if (raw) setUser(JSON.parse(raw))
-    fetch('/api/posts').then(r => r.json()).then(d => {
-      setPosts(Array.isArray(d) ? d.slice(0, 20) : [])
+    const u = raw ? JSON.parse(raw) : null
+    if (u) setUser(u)
+    fetch('/api/posts').then(r => r.json()).then(async (d) => {
+      const list = Array.isArray(d) ? d.slice(0, 20) : []
+      setPosts(list)
+      // 모든 게시글 likeCount 를 likedState 에 미리 채워둔다 (좋아요 0 버그 수정)
+      const init = {}
+      list.forEach(p => { init[p.id] = { count: p.likeCount ?? p.likes ?? 0, liked: false } })
+      setLikedState(init)
       setLoading(false)
+
+      // 로그인된 사용자라면 어떤 글에 좋아요 눌렀는지 한 번에 확인
+      if (u) {
+        await Promise.all(list.map(async (p) => {
+          try {
+            const r = await fetch(`/api/likes?postId=${encodeURIComponent(p.id)}&userId=${encodeURIComponent(u.id)}`)
+            if (!r.ok) return
+            const { count, liked } = await r.json()
+            setLikedState(s => ({ ...s, [p.id]: { count, liked } }))
+          } catch {}
+        }))
+      }
     }).catch(() => setLoading(false))
   }, [])
 
@@ -40,15 +67,44 @@ export default function Home() {
     return new Date(d).toLocaleDateString('ko-KR')
   }
 
-  const toggleLike = async (p) => {
-    if (!user) { router.push('/login'); return }
-    const res = await fetch('/api/likes', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postId: p.id, userId: user.id }),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      setLikedState(s => ({ ...s, [p.id]: { count: data.count, liked: data.liked } }))
+  // 좋아요 토글 — 로그인 안 했으면 안내 모달 띄움
+  const toggleLike = async (p, opts = {}) => {
+    const { onlyAddOnDouble = false } = opts
+    if (!user) { setLoginPrompt(true); return }
+    const cur = likedState[p.id]
+    // 더블클릭의 경우 이미 좋아요 상태면 그대로 두고 펄스만 (Instagram 동작)
+    if (onlyAddOnDouble && cur?.liked) {
+      setPulseId(p.id)
+      setTimeout(() => setPulseId(null), 800)
+      return
+    }
+    try {
+      const res = await fetch('/api/likes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: p.id, userId: user.id }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setLikedState(s => ({ ...s, [p.id]: { count: data.count, liked: data.liked } }))
+        if (data.liked) {
+          setPulseId(p.id)
+          setTimeout(() => setPulseId(null), 800)
+        }
+      }
+    } catch {}
+  }
+
+  // 더블클릭 = Instagram 하트 토글
+  const handleMediaDoubleClick = (p) => toggleLike(p, { onlyAddOnDouble: true })
+  // 모바일 더블탭 폴백
+  const handleMediaTouchEnd = (p) => {
+    const now = Date.now()
+    const last = lastTapRef.current[p.id] || 0
+    if (now - last < 320) {
+      handleMediaDoubleClick(p)
+      lastTapRef.current[p.id] = 0
+    } else {
+      lastTapRef.current[p.id] = now
     }
   }
 
@@ -58,12 +114,14 @@ export default function Home() {
         <div className="feed-grid">
           {/* 메인 컬럼 */}
           <div className="feed-main">
-            {/* 스토리 스트립 */}
-            <div className="feed-stories">
-              <Suspense fallback={<div style={{height:80}}/>}>
-                <StoryStrip />
-              </Suspense>
-            </div>
+            {/* 스토리 스트립 — 로그인 사용자만 노출 (컴포넌트 내부에서도 가드) */}
+            {user && (
+              <div className="feed-stories">
+                <Suspense fallback={<div style={{height:80}}/>}>
+                  <StoryStrip />
+                </Suspense>
+              </div>
+            )}
 
             {/* 피드 헤더 */}
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',margin:'1.5rem 0 1rem'}}>
@@ -85,6 +143,8 @@ export default function Home() {
                 {posts.map(p => {
                   const thumbs = Array.isArray(p.imageUrl) ? p.imageUrl : (p.imageUrl ? [p.imageUrl] : [])
                   const myLike = likedState[p.id]
+                  const count = myLike?.count ?? p.likeCount ?? p.likes ?? 0
+                  const liked = !!myLike?.liked
                   return (
                     <article key={p.id} className="feed-post">
                       {/* 헤더 */}
@@ -98,12 +158,24 @@ export default function Home() {
                         </div>
                       </header>
 
-                      {/* 사진 (있을 때만 큼지막하게) */}
+                      {/* 사진 (있을 때만 큼지막하게) — 더블클릭으로 하트 */}
                       {thumbs.length > 0 && (
-                        <Link href={`/board/${p.id}`} className="fp-media">
-                          <img src={thumbs[0]} alt="" />
+                        <div
+                          className="fp-media"
+                          onDoubleClick={() => handleMediaDoubleClick(p)}
+                          onTouchEnd={() => handleMediaTouchEnd(p)}
+                        >
+                          <img src={thumbs[0]} alt="" draggable={false} />
                           {thumbs.length > 1 && <div className="fp-count">+{thumbs.length - 1}</div>}
-                        </Link>
+                          {pulseId === p.id && (
+                            <div className="fp-heart-pulse" aria-hidden>
+                              <svg viewBox="0 0 24 24" width="100" height="100" fill="#fff" stroke="rgba(0,0,0,.25)" strokeWidth="1.5">
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                              </svg>
+                            </div>
+                          )}
+                          <Link href={`/board/${p.id}`} className="fp-media-link" aria-label="게시글 보기"/>
+                        </div>
                       )}
 
                       {/* 본문 (사진 아래 / 액션바 위) */}
@@ -115,7 +187,7 @@ export default function Home() {
                       {/* 액션바 (본문 아래) */}
                       <div className="fp-actions">
                         <button className="fp-action" onClick={()=>toggleLike(p)} aria-label="좋아요">
-                          <svg viewBox="0 0 24 24" width="26" height="26" fill={myLike?.liked?'#ff3b5c':'none'} stroke={myLike?.liked?'#ff3b5c':'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <svg viewBox="0 0 24 24" width="26" height="26" fill={liked?'#ff3b5c':'none'} stroke={liked?'#ff3b5c':'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                           </svg>
                         </button>
@@ -137,7 +209,7 @@ export default function Home() {
                       </div>
 
                       {/* 좋아요 카운트 + 댓글 링크 (액션바 아래) */}
-                      <div className="fp-likes">좋아요 {(myLike?.count ?? p.likes ?? 0).toLocaleString()}개</div>
+                      <div className="fp-likes">좋아요 {count.toLocaleString()}개</div>
                       <Link href={`/board/${p.id}`} className="fp-view-more">
                         댓글 보기 · 조회 {p.views || 0}
                       </Link>
@@ -165,6 +237,30 @@ export default function Home() {
 
       <Suspense fallback={null}><Chatbot /></Suspense>
 
+      {/* 로그인 안내 모달 */}
+      {loginPrompt && (
+        <div className="lp-overlay" onClick={()=>setLoginPrompt(false)}>
+          <div className="lp-card" onClick={e=>e.stopPropagation()} role="dialog" aria-label="로그인 안내">
+            <button className="lp-close" onClick={()=>setLoginPrompt(false)} aria-label="닫기">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+            <div className="lp-heart" aria-hidden>
+              <svg viewBox="0 0 24 24" width="56" height="56" fill="#ff3b5c" stroke="#ff3b5c" strokeWidth="1.5">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+            </div>
+            <h3 className="lp-title">게시글이 마음에 드시나요?</h3>
+            <p className="lp-sub">로그인하면 좋아요, 댓글, 메시지 기능을 모두 사용할 수 있어요.</p>
+            <div className="lp-btns">
+              <button className="lp-btn lp-primary" onClick={()=>router.push('/login')}>로그인</button>
+              <button className="lp-btn" onClick={()=>setLoginPrompt(false)}>닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .feed-grid{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:1.5rem;}
         .feed-main{min-width:0;max-width:520px;margin:0 auto;}
@@ -180,9 +276,18 @@ export default function Home() {
         .fp-author{font-family:var(--mono);font-size:.85rem;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
         .fp-time{font-family:var(--mono);font-size:.68rem;color:var(--muted);margin-top:.15rem;display:flex;gap:.4rem;align-items:center;}
 
-        .fp-media{display:block;position:relative;aspect-ratio:1/1;background:#000;overflow:hidden;}
+        .fp-media{display:block;position:relative;aspect-ratio:1/1;background:#000;overflow:hidden;user-select:none;}
         .fp-media img{width:100%;height:100%;object-fit:cover;display:block;}
-        .fp-count{position:absolute;top:.6rem;right:.6rem;background:rgba(0,0,0,.7);color:#fff;font-family:var(--mono);font-size:.7rem;padding:.15rem .5rem;border-radius:10px;}
+        .fp-media-link{position:absolute;inset:0;}
+        .fp-count{position:absolute;top:.6rem;right:.6rem;background:rgba(0,0,0,.7);color:#fff;font-family:var(--mono);font-size:.7rem;padding:.15rem .5rem;border-radius:10px;z-index:2;}
+        .fp-heart-pulse{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;animation:fp-pop .8s ease-out forwards;z-index:3;}
+        @keyframes fp-pop{
+          0%{opacity:0;transform:scale(.3);}
+          15%{opacity:1;transform:scale(1.2);}
+          30%{transform:scale(1);}
+          80%{opacity:1;}
+          100%{opacity:0;transform:scale(1);}
+        }
 
         .fp-body{display:block;padding:.75rem 1rem .25rem;font-size:.92rem;line-height:1.55;color:var(--text);text-decoration:none;word-break:break-word;}
         .fp-title{font-family:var(--serif);font-weight:700;font-size:1.02rem;color:var(--ink);display:block;margin-bottom:.25rem;}
@@ -196,6 +301,23 @@ export default function Home() {
         .fp-likes{padding:0 1rem .25rem;font-family:var(--mono);font-size:.78rem;font-weight:700;color:var(--text);}
         .fp-view-more{display:block;padding:.1rem 1rem .85rem;font-family:var(--mono);font-size:.72rem;color:var(--muted);text-decoration:none;}
         .fp-view-more:hover{color:var(--accent);}
+
+        /* ── 로그인 안내 모달 ── */
+        .lp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;animation:lp-fade .18s ease;}
+        @keyframes lp-fade{from{opacity:0}to{opacity:1}}
+        .lp-card{position:relative;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:14px;padding:1.8rem 1.6rem 1.4rem;width:min(360px,92vw);text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.4);animation:lp-pop .25s ease;}
+        @keyframes lp-pop{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
+        .lp-close{position:absolute;top:.6rem;right:.6rem;background:none;border:none;color:var(--muted);cursor:pointer;padding:.3rem;border-radius:6px;display:flex;}
+        .lp-close:hover{color:var(--text);background:var(--surface2);}
+        .lp-heart{margin:.3rem auto .65rem;display:flex;justify-content:center;animation:lp-beat 1.2s ease-in-out infinite;}
+        @keyframes lp-beat{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+        .lp-title{font-family:var(--serif);font-size:1.15rem;font-weight:700;color:var(--ink);margin-bottom:.45rem;}
+        .lp-sub{font-family:var(--font);font-size:.85rem;color:var(--muted);line-height:1.55;margin-bottom:1.1rem;}
+        .lp-btns{display:flex;gap:.55rem;justify-content:center;}
+        .lp-btn{padding:.55rem 1.1rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--mono);font-size:.8rem;cursor:pointer;font-weight:600;}
+        .lp-btn:hover{background:var(--surface2);}
+        .lp-primary{background:linear-gradient(135deg,#ff3b5c,#c0392b);color:#fff;border:none;}
+        .lp-primary:hover{filter:brightness(1.05);}
       `}</style>
     </main>
   )

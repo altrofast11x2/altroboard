@@ -29,7 +29,6 @@ const FONTS = [
   { label: '세리프', value: 'serif' },
   { label: '모노', value: 'mono' },
 ]
-const EMOJIS = ['✨','🔥','💫','🌙','🌿','🎵','📖','💭','🫀','⚡','🌊','🍂']
 
 export default function StoriesPage() {
   const [user,        setUser]        = useState(null)
@@ -40,12 +39,14 @@ export default function StoriesPage() {
   const [viewIdx,     setViewIdx]     = useState(0)
   const [progKey,     setProgKey]     = useState(0)
 
-  // create form
+  // create form (caption = 이미지 위 오버레이 자막, content = 본문)
   const [content,  setContent]  = useState('')
+  const [caption,  setCaption]  = useState('')
   const [bgColor,  setBgColor]  = useState(BG_COLORS[0].value)
-  const [emoji,    setEmoji]    = useState('')
   const [font,     setFont]     = useState('sans')
   const [posting,  setPosting]  = useState(false)
+  // 편집 모드 — story 객체가 들어있으면 편집 모드
+  const [editing,  setEditing]  = useState(null)
   // 사진 첨부
   const [storyImage, setStoryImage] = useState(null)
   const [storyImagePreview, setStoryImagePreview] = useState(null)
@@ -181,16 +182,44 @@ export default function StoriesPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         authorId: user.id, authorName: user.name, authorAvatar: user.avatar || null,
-        content, bgColor, emoji, font, imageUrl, music: scTrack || null,
+        content, caption, bgColor, font, imageUrl, music: scTrack || null,
       }),
     })
     const data = await res.json()
     if (data.error) { alert(data.error); setPosting(false); return }
-    setContent(''); setBgColor(BG_COLORS[0].value); setEmoji(''); setFont('sans')
+    setContent(''); setCaption(''); setBgColor(BG_COLORS[0].value); setFont('sans')
     setStoryImage(null); setStoryImagePreview(null)
     setScUrl(''); setScTrack(null); setScErr('')
     setShowCreate(false); setPosting(false)
     loadStories()
+  }
+
+  // 편집 모드 열기
+  const openEdit = (story) => {
+    setEditing(story)
+    setContent(story.content || '')
+    setCaption(story.caption || '')
+    setBgColor(story.bgColor || BG_COLORS[0].value)
+    setFont(story.font || 'sans')
+    closeViewer()
+  }
+
+  const saveEdit = async () => {
+    if (!user || !editing) return
+    setPosting(true)
+    const res = await fetch(`/api/stories/${editing.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, content, caption, bgColor, font }),
+    })
+    const data = await res.json()
+    if (data.error) { alert(data.error); setPosting(false); return }
+    setEditing(null); setContent(''); setCaption(''); setPosting(false)
+    loadStories()
+  }
+
+  const cancelEdit = () => {
+    setEditing(null); setContent(''); setCaption('')
+    setBgColor(BG_COLORS[0].value); setFont('sans')
   }
 
   const fontClass = { sans: 'var(--font)', serif: 'var(--serif)', mono: 'var(--mono)' }
@@ -264,16 +293,18 @@ export default function StoriesPage() {
               return (
                 <div key={s.id} className="story-card" style={{ background: s.bgColor }}
                   onClick={() => authorGroup && openViewer(authorGroup, storyIdx)}>
-                  {s.emoji && <div className="story-card-emoji">{s.emoji}</div>}
-                  <p className="story-card-text" style={{ fontFamily: fontClass[s.font] || 'var(--font)' }}>
-                    {s.content}
+                  {s.imageUrl && (
+                    <img src={s.imageUrl} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:.55 }} />
+                  )}
+                  <p className="story-card-text" style={{ fontFamily: fontClass[s.font] || 'var(--font)', position:'relative', zIndex:1 }}>
+                    {s.caption || s.content}
                   </p>
-                  <div className="story-card-meta">
+                  <div className="story-card-meta" style={{ position:'relative', zIndex:1 }}>
                     <Link href={`/profile/${s.authorId}`} onClick={e => e.stopPropagation()}
-                      style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem', fontFamily: 'var(--mono)' }}>
+                      style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.7rem', fontFamily: 'var(--mono)', textShadow:'0 1px 2px rgba(0,0,0,.5)' }}>
                       {s.authorName}
                     </Link>
-                    <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.65rem', fontFamily: 'var(--mono)' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.65rem', fontFamily: 'var(--mono)', textShadow:'0 1px 2px rgba(0,0,0,.5)' }}>
                       {h}h {m}m 남음
                     </span>
                   </div>
@@ -317,11 +348,25 @@ export default function StoriesPage() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <span style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--mono)', fontSize: '0.65rem' }}>
-                  👁 {currentStory.views || 0}
+                <span className="sv-views" title={`${currentStory.views || 0}회 조회`}>
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  {currentStory.views || 0}
                 </span>
+                {user && user.id === currentStory.authorId && (
+                  <button className="sv-icon-btn" onClick={() => openEdit(currentStory)} title="편집" aria-label="편집">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                )}
                 {user && (user.id === currentStory.authorId || ['owner','admin'].includes(user.role)) && (
-                  <button className="sv-del-btn" onClick={() => deleteStory(currentStory.id)}>🗑</button>
+                  <button className="sv-icon-btn" onClick={() => deleteStory(currentStory.id)} title="삭제" aria-label="삭제">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                  </button>
                 )}
                 <button className="sv-close" onClick={closeViewer}>✕</button>
               </div>
@@ -329,7 +374,6 @@ export default function StoriesPage() {
 
             {/* content */}
             <div className="sv-body" style={{ position:'relative', zIndex:1 }}>
-              {currentStory.emoji && <div className="sv-emoji">{currentStory.emoji}</div>}
               {currentStory.imageUrl && (
                 currentStory.content ? (
                   <img src={currentStory.imageUrl} alt="" style={{ maxWidth:'100%', maxHeight:'50%', borderRadius:8, objectFit:'contain', marginBottom:'0.75rem' }} />
@@ -338,6 +382,12 @@ export default function StoriesPage() {
                   <img src={currentStory.imageUrl} alt=""
                     style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', zIndex:0, borderRadius:16 }} />
                 )
+              )}
+              {/* 이미지 위 자막 — caption 이 있을 때만 표시 */}
+              {currentStory.imageUrl && currentStory.caption && (
+                <div className="sv-caption" style={{ fontFamily: fontClass[currentStory.font] || 'var(--font)' }}>
+                  {currentStory.caption}
+                </div>
               )}
               {currentStory.content ? (
                 <p className="sv-text" style={{ fontFamily: fontClass[currentStory.font] || 'var(--font)' }}>
@@ -369,24 +419,39 @@ export default function StoriesPage() {
         </div>
       )}
 
-      {/* ══ CREATE STORY MODAL ══ */}
-      {showCreate && (
-        <div className="sv-overlay" onClick={() => setShowCreate(false)}>
+      {/* ══ CREATE / EDIT STORY MODAL ══ */}
+      {(showCreate || editing) && (
+        <div className="sv-overlay" onClick={() => editing ? cancelEdit() : setShowCreate(false)}>
           <div className="create-modal" onClick={e => e.stopPropagation()}>
             <div className="create-header">
-              <h3>새 스토리</h3>
-              <button className="sv-close" onClick={() => setShowCreate(false)}>✕</button>
+              <h3>{editing ? '스토리 편집' : '새 스토리'}</h3>
+              <button className="sv-close" onClick={() => editing ? cancelEdit() : setShowCreate(false)}>✕</button>
             </div>
 
             {/* preview */}
-            <div className="create-preview" style={{ background: bgColor }}>
-              {emoji && <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>{emoji}</div>}
+            <div className="create-preview" style={{ background: bgColor, position:'relative', overflow:'hidden' }}>
+              {storyImagePreview && (
+                <img src={storyImagePreview} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:.85 }} />
+              )}
+              {storyImagePreview && caption && (
+                <div style={{
+                  position:'relative', zIndex:1, fontFamily: fontClass[font], color:'#fff',
+                  fontSize:'1.05rem', fontWeight:600, textAlign:'center',
+                  background:'rgba(0,0,0,.45)', backdropFilter:'blur(4px)',
+                  padding:'.45rem .85rem', borderRadius:8, marginBottom:'.75rem',
+                  maxWidth:'85%', wordBreak:'break-word', textShadow:'0 1px 3px rgba(0,0,0,.6)',
+                }}>
+                  {caption}
+                </div>
+              )}
               <p style={{
+                position:'relative', zIndex:1,
                 fontFamily: fontClass[font], color: '#fff', fontSize: '1.1rem',
                 lineHeight: 1.7, whiteSpace: 'pre-wrap', textAlign: 'center',
                 wordBreak: 'break-word', opacity: content ? 1 : 0.35,
+                textShadow: storyImagePreview ? '0 1px 3px rgba(0,0,0,.6)' : 'none',
               }}>
-                {content || '내용을 입력하세요...'}
+                {content || (storyImagePreview ? '' : '내용을 입력하세요...')}
               </p>
             </div>
 
@@ -414,16 +479,20 @@ export default function StoriesPage() {
                 </div>
               </div>
 
-              <div className="create-row">
-                <span className="create-label">이모지</span>
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <button onClick={() => setEmoji('')} style={{ fontSize: '0.7rem', fontFamily: 'var(--mono)', padding: '0.2rem 0.5rem', border: !emoji ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: 2, background: 'none', cursor: 'pointer' }}>없음</button>
-                  {EMOJIS.map(e => (
-                    <button key={e} onClick={() => setEmoji(e)}
-                      style={{ fontSize: '1.2rem', background: emoji === e ? 'rgba(192,57,43,0.12)' : 'none', border: emoji === e ? '1px solid var(--accent)' : '1px solid transparent', borderRadius: 4, padding: '0.1rem 0.3rem', cursor: 'pointer' }}>
-                      {e}
-                    </button>
-                  ))}
+              {/* 자막 — 이미지에 얹는 짧은 텍스트 (80자) */}
+              <div className="create-row" style={{ alignItems: 'flex-start' }}>
+                <span className="create-label">자막</span>
+                <div style={{ flex: 1 }}>
+                  <input
+                    placeholder="이미지 위에 표시할 짧은 자막 (선택)"
+                    value={caption}
+                    onChange={e => setCaption(e.target.value)}
+                    maxLength={80}
+                    style={{ width:'100%', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:2, padding:'.45rem .65rem', color:'var(--text)', fontFamily:'var(--font)', fontSize:'.82rem', outline:'none' }}
+                  />
+                  <div style={{ display:'flex', justifyContent:'flex-end', fontFamily:'var(--mono)', fontSize:'.62rem', color:'var(--muted)', marginTop:2 }}>
+                    {caption.length}/80
+                  </div>
                 </div>
               </div>
 
@@ -439,7 +508,8 @@ export default function StoriesPage() {
                 </div>
               </div>
 
-              {/* 사진 첨부 */}
+              {/* 사진 첨부 — 편집 모드에서는 숨김 (재업로드 부담 회피) */}
+              {!editing && (
               <div className="create-row" style={{ alignItems: 'center' }}>
                 <span className="create-label">사진</span>
                 <div style={{ flex: 1 }}>
@@ -460,8 +530,10 @@ export default function StoriesPage() {
                     }} />
                 </div>
               </div>
+              )}
 
-              {/* 음악 첨부 */}
+              {/* 음악 첨부 — 편집 모드에서는 숨김 */}
+              {!editing && (
               <div className="create-row" style={{ alignItems: 'flex-start' }}>
                 <span className="create-label">음악</span>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -488,11 +560,19 @@ export default function StoriesPage() {
                   )}
                 </div>
               </div>
+              )}
 
-              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}
-                onClick={postStory} disabled={posting || (!content.trim() && !storyImage)}>
-                {posting ? '올리는 중...' : '스토리 올리기'}
-              </button>
+              {editing ? (
+                <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:'0.5rem' }}
+                  onClick={saveEdit} disabled={posting}>
+                  {posting ? '저장 중...' : '편집 저장'}
+                </button>
+              ) : (
+                <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:'0.5rem' }}
+                  onClick={postStory} disabled={posting || (!content.trim() && !storyImage)}>
+                  {posting ? '올리는 중...' : '스토리 올리기'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -513,8 +593,7 @@ export default function StoriesPage() {
         .stories-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem;margin-bottom:2rem;}
         .story-card{border-radius:12px;padding:1.25rem;cursor:pointer;min-height:200px;display:flex;flex-direction:column;justify-content:space-between;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;}
         .story-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.25);}
-        .story-card-emoji{font-size:2rem;margin-bottom:0.5rem;}
-        .story-card-text{color:#fff;font-size:0.85rem;line-height:1.65;flex:1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;word-break:break-word;}
+        .story-card-text{color:#fff;font-size:0.85rem;line-height:1.65;flex:1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;word-break:break-word;text-shadow:0 1px 3px rgba(0,0,0,.5);}
         .story-card-meta{display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;gap:0.5rem;}
 
         /* ── Viewer ── */
@@ -530,11 +609,12 @@ export default function StoriesPage() {
         .sv-avatar{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;overflow:hidden;color:#fff;font-family:var(--serif);font-weight:700;font-size:.9rem;flex-shrink:0;}
         .sv-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:1.1rem;cursor:pointer;padding:0.2rem 0.4rem;border-radius:4px;}
         .sv-close:hover{color:#fff;background:rgba(255,255,255,.1);}
-        .sv-del-btn{background:none;border:none;color:rgba(255,255,255,.5);font-size:0.9rem;cursor:pointer;padding:0.2rem;}
-        .sv-del-btn:hover{color:#fff;}
+        .sv-views{display:inline-flex;align-items:center;gap:.25rem;color:rgba(255,255,255,.6);font-family:var(--mono);font-size:.65rem;}
+        .sv-icon-btn{background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.75);cursor:pointer;padding:.3rem;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+        .sv-icon-btn:hover{background:rgba(255,255,255,.18);color:#fff;}
         .sv-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1.5rem;position:relative;z-index:2;}
-        .sv-emoji{font-size:3.5rem;margin-bottom:1rem;}
-        .sv-text{color:#fff;font-size:1.25rem;line-height:1.75;text-align:center;word-break:break-word;white-space:pre-wrap;}
+        .sv-text{color:#fff;font-size:1.25rem;line-height:1.75;text-align:center;word-break:break-word;white-space:pre-wrap;text-shadow:0 1px 4px rgba(0,0,0,.5);}
+        .sv-caption{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);max-width:85%;color:#fff;font-size:1.1rem;font-weight:600;text-align:center;padding:.5rem .9rem;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);border-radius:8px;word-break:break-word;text-shadow:0 1px 3px rgba(0,0,0,.6);z-index:2;}
         .sv-tap-left{position:absolute;left:0;top:0;width:35%;height:100%;z-index:3;cursor:pointer;}
         .sv-tap-right{position:absolute;right:0;top:0;width:35%;height:100%;z-index:3;cursor:pointer;}
         .sv-dots{position:absolute;bottom:1.2rem;left:50%;transform:translateX(-50%);display:flex;gap:5px;z-index:4;}

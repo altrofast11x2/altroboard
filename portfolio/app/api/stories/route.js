@@ -40,21 +40,24 @@ export async function GET() {
 }
 
 // POST /api/stories → 스토리 생성
+// caption: 이미지 위에 얹는 자막 (≤80자) — 이모지 대체용
 export async function POST(request) {
-  const { authorId, authorName, authorAvatar, content, bgColor, emoji, font, imageUrl, music } = await request.json()
+  const { authorId, authorName, authorAvatar, content, bgColor, font, imageUrl, caption, music } = await request.json()
   if (!authorId || (!content?.trim() && !imageUrl))
     return Response.json({ error: '필수 정보가 없습니다' }, { status: 400 })
   if (content && content.trim().length > 200)
     return Response.json({ error: '200자 이하로 작성해주세요' }, { status: 400 })
+  if (caption && caption.trim().length > 80)
+    return Response.json({ error: '자막은 80자 이하' }, { status: 400 })
 
   const newRef = push(ref(db, 'stories'))
   const story  = {
     authorId,
     authorName:   authorName   || '익명',
     authorAvatar: authorAvatar || null,
-    content:      content.trim(),
+    content:      (content || '').trim(),
+    caption:      (caption || '').trim(),
     bgColor:      bgColor      || '#1a1208',
-    emoji:        emoji        || '',
     font:         font         || 'sans',
     imageUrl:     imageUrl     || null,
     music:        music        || null,

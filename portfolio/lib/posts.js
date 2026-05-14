@@ -16,18 +16,32 @@ const firebaseConfig = {
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
 const db = getDatabase(app)
 
+// likes 노드를 한 번에 읽어 게시글마다 likeCount 를 붙인다.
+// 클라이언트가 게시글별로 fetch 호출 안 해도 되게.
 export async function getPosts() {
-  const snap = await get(ref(db, 'posts'))
-  if (!snap.exists()) return []
-  return Object.entries(snap.val())
-    .map(([id, data]) => ({ id, ...data }))
+  const [postsSnap, likesSnap] = await Promise.all([
+    get(ref(db, 'posts')),
+    get(ref(db, 'likes')),
+  ])
+  if (!postsSnap.exists()) return []
+  const likesAll = likesSnap.exists() ? likesSnap.val() : {}
+  return Object.entries(postsSnap.val())
+    .map(([id, data]) => {
+      const likeMap = likesAll[id]
+      const likeCount = likeMap && typeof likeMap === 'object' ? Object.keys(likeMap).length : 0
+      return { id, ...data, likeCount }
+    })
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 }
 
 export async function getPost(id) {
-  const snap = await get(ref(db, `posts/${id}`))
+  const [snap, likesSnap] = await Promise.all([
+    get(ref(db, `posts/${id}`)),
+    get(ref(db, `likes/${id}`)),
+  ])
   if (!snap.exists()) return null
-  return { id, ...snap.val() }
+  const likeCount = likesSnap.exists() ? Object.keys(likesSnap.val() || {}).length : 0
+  return { id, ...snap.val(), likeCount }
 }
 
 export async function createPost(data) {
