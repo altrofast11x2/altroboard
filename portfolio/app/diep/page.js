@@ -54,7 +54,8 @@ export default function DiepPage() {
   const lastFireRef = useRef(0)
   const [running, setRunning] = useState(false)
   const [phase, setPhase]     = useState('intro')
-  const [hud, setHud]         = useState({ level: 1, xp: 0, xpNeed: 50, hp: 100, maxHp: 100, score: 0 })
+  const [hud, setHud]         = useState({ level: 1, xp: 0, xpNeed: 50, hp: 100, maxHp: 100, score: 0, statPoints: 0 })
+  const [stats, setStats]     = useState({ hp: 0, regen: 0, body: 0, bspd: 0, bpen: 0, bdmg: 0, reload: 0, mspd: 0 })
   const [name, setName]       = useState('')
   const [aliveCount, setAliveCount] = useState(0)
   const [leaderboard, setLeaderboard] = useState([])
@@ -97,8 +98,14 @@ export default function DiepPage() {
       keys: {}, mouse: { x: 0, y: 0, down: false },
       camera: { x: me.x, y: me.y },
       myX: me.x, myY: me.y, myVx: 0, myVy: 0, myAngle: 0,
-      mySpeed: 2.4, myFireRate: 400, myBulletSpeed: 7, myDamage: 8,
+      mySpeed: 1.5, myFireRate: 400, myBulletSpeed: 7, myDamage: 8,
       myHp: 100, myMaxHp: 100, myLevel: 1, myXp: 0, score: 0,
+      myRegen: 0.05,         // 프레임당 hp 회복 (60fps 기준 초당 3)
+      myBodyDmg: 12,         // 본체 충돌 데미지
+      myBulletPen: 1,        // 총알 관통 (현재 1=충돌즉소멸)
+      statPoints: 0,         // 업그레이드 사용 가능 포인트
+      stats: { hp: 0, regen: 0, body: 0, bspd: 0, bpen: 0, bdmg: 0, reload: 0, mspd: 0 },
+      lastShapeHit: {},      // shapeId -> 마지막 충돌 시간 (도형 충돌 데미지 throttle)
     }
     setPhase('playing'); setRunning(true)
 
@@ -138,6 +145,8 @@ export default function DiepPage() {
     setPhase('over'); setRunning(false)
     cancelAnimationFrame(rafRef.current)
     cleanup()
+    // UI 표시 stats 초기화 — 재시작 시 깨끗하게
+    setStats({ hp: 0, regen: 0, body: 0, bspd: 0, bpen: 0, bdmg: 0, reload: 0, mspd: 0 })
   }
   const cleanup = () => {
     cleanupRef.current.forEach(fn => { try { fn() } catch {} })
@@ -147,6 +156,29 @@ export default function DiepPage() {
     if (myId && db) remove(ref(db, `diep/tanks/${myId}`)).catch(()=>{})
   }
   useEffect(() => () => cleanup(), [])
+
+  // 업그레이드 핸들러 (UI 에서 호출) — diep.io 원본 카테고리 8종
+  // hp = 최대 체력, regen = 회복, body = 본체 데미지, bspd = 총알 속도,
+  // bpen = 총알 관통, bdmg = 총알 데미지, reload = 발사 속도, mspd = 이동 속도
+  const upgrade = (key) => {
+    const s = stateRef.current
+    if (!s || s.statPoints <= 0) return
+    if ((s.stats[key] || 0) >= 7) return    // 카테고리당 최대 7
+    s.statPoints--
+    s.stats[key] = (s.stats[key] || 0) + 1
+    switch (key) {
+      case 'hp':     s.myMaxHp += 20; s.myHp += 20; break
+      case 'regen':  s.myRegen  += 0.05; break
+      case 'body':   s.myBodyDmg += 4; break
+      case 'bspd':   s.myBulletSpeed += 0.9; break
+      case 'bpen':   s.myBulletPen += 0.5; break
+      case 'bdmg':   s.myDamage += 3; break
+      case 'reload': s.myFireRate = Math.max(120, s.myFireRate - 45); break
+      case 'mspd':   s.mySpeed += 0.25; break
+    }
+    setStats({ ...s.stats })
+    setHud((h) => ({ ...h, statPoints: s.statPoints, maxHp: s.myMaxHp }))
+  }
 
   useEffect(() => {
     if (!running) return
@@ -160,7 +192,11 @@ export default function DiepPage() {
     }
     resize(); window.addEventListener('resize', resize)
 
-    const onKD = (e) => { stateRef.current.keys[e.key.toLowerCase()] = true }
+    const STAT_KEY_MAP = { '1':'hp','2':'regen','3':'body','4':'bspd','5':'bpen','6':'bdmg','7':'reload','8':'mspd' }
+    const onKD = (e) => {
+      stateRef.current.keys[e.key.toLowerCase()] = true
+      if (STAT_KEY_MAP[e.key]) upgrade(STAT_KEY_MAP[e.key])
+    }
     const onKU = (e) => { stateRef.current.keys[e.key.toLowerCase()] = false }
     window.addEventListener('keydown', onKD); window.addEventListener('keyup', onKU)
 
@@ -202,12 +238,12 @@ export default function DiepPage() {
       while (s.myXp >= xpForLevel(s.myLevel)) {
         s.myXp -= xpForLevel(s.myLevel)
         s.myLevel++
-        s.myMaxHp += 12
-        s.myHp = Math.min(s.myMaxHp, s.myHp + 30)
-        s.myDamage += 1.5
-        s.myFireRate = Math.max(180, s.myFireRate - 12)
-        s.myBulletSpeed += 0.2
-        s.mySpeed += 0.05
+        // 자동 강화 (작은 폭) — 원본도 살짝씩 자동 강화 있음
+        s.myMaxHp += 6
+        s.myHp = Math.min(s.myMaxHp, s.myHp + 20)
+        // 레벨업 시 stat 포인트 +1 (15·30·45 레벨엔 추가 보너스)
+        s.statPoints += 1
+        if (s.myLevel === 15 || s.myLevel === 30 || s.myLevel === 45) s.statPoints += 2
       }
     }
 
@@ -232,6 +268,44 @@ export default function DiepPage() {
       s.myY = Math.max(20, Math.min(WORLD-20, s.myY + s.myVy))
       s.myAngle = Math.atan2(s.mouse.y, s.mouse.x)
       if (s.mouse.down || s.keys[' ']) fireBullet()
+
+      // HP 회복 (초당 myRegen * 60 = ~3hp)
+      if (s.myHp < s.myMaxHp) s.myHp = Math.min(s.myMaxHp, s.myHp + s.myRegen)
+
+      // 본인 vs 도형 본체 충돌 — 양쪽 다 데미지 + 밀어내기
+      const TANK_R = 22
+      const now0 = Date.now()
+      for (const [shid, sh] of Object.entries(s.shapes)) {
+        const dxs = sh.x - s.myX, dys = sh.y - s.myY
+        const d2 = dxs*dxs + dys*dys
+        const minD = TANK_R + sh.size
+        if (d2 < minD*minD && d2 > 0) {
+          // 500ms throttle per shape — sync 폭주 방지
+          if ((s.lastShapeHit[shid] || 0) + 500 < now0) {
+            s.lastShapeHit[shid] = now0
+            s.myHp -= s.myBodyDmg
+            // 도형도 데미지 — myBodyDmg * 2 (탱크 본체가 도형에 두배 데미지)
+            const shapeDmgFromBody = Math.max(20, s.myBodyDmg * 1.6)
+            runTransaction(ref(db, `diep/shapes/${shid}`), (cur) => {
+              if (!cur) return cur
+              const newHp = cur.hp - shapeDmgFromBody
+              if (newHp <= 0) return null
+              return { ...cur, hp: newHp }
+            }).then((res) => {
+              if (res.committed && res.snapshot.val() === null) handleLevelUp(sh.xp)
+            }).catch(()=>{})
+          }
+          // 밀어내기 (충돌 분리)
+          const dist = Math.sqrt(d2)
+          const push = (minD - dist) / dist
+          s.myX -= dxs * push * 0.5
+          s.myY -= dys * push * 0.5
+          if (s.myHp <= 0) {
+            update(ref(db, `diep/tanks/${myId}`), { hp: 0, alive: false }).catch(()=>{})
+            return
+          }
+        }
+      }
 
       // 본인 총알 vs 도형/탱크
       for (const [bid, b] of Object.entries(s.bullets)) {
@@ -420,7 +494,7 @@ export default function DiepPage() {
 
       ctx.restore()
 
-      setHud({ level: s.myLevel, xp: s.myXp, xpNeed: xpForLevel(s.myLevel), hp: Math.round(s.myHp), maxHp: s.myMaxHp, score: s.score })
+      setHud({ level: s.myLevel, xp: s.myXp, xpNeed: xpForLevel(s.myLevel), hp: Math.round(s.myHp), maxHp: s.myMaxHp, score: s.score, statPoints: s.statPoints })
       rafRef.current = requestAnimationFrame(loop)
     }
     rafRef.current = requestAnimationFrame(loop)
@@ -446,6 +520,7 @@ export default function DiepPage() {
               <div className="dp-hud-stat"><span>Lv</span><strong>{hud.level}</strong></div>
               <div className="dp-hud-stat"><span>HP</span><strong>{hud.hp}/{hud.maxHp}</strong></div>
               <div className="dp-hud-stat"><span>Score</span><strong>{hud.score}</strong></div>
+              {hud.statPoints > 0 && <div className="dp-hud-stat dp-hud-pts"><span>UP</span><strong>{hud.statPoints}</strong></div>}
               {isHost && <div className="dp-hud-stat" style={{background:'rgba(52,152,219,.25)'}}><span>HOST</span></div>}
               <div className="dp-xp-bar"><div className="dp-xp-fill" style={{width:`${(hud.xp/hud.xpNeed)*100}%`}}/></div>
             </>
@@ -459,10 +534,11 @@ export default function DiepPage() {
             <input className="dp-input" placeholder="이름" value={name} onChange={e=>setName(e.target.value)} maxLength={16}/>
             <button className="dp-start" onClick={start}>플레이</button>
             <ul className="dp-rules">
-              <li>WASD/방향키로 이동</li>
-              <li>마우스 방향으로 포탑 회전</li>
+              <li>WASD/방향키로 이동, 마우스로 조준</li>
               <li>클릭 또는 스페이스로 발사</li>
-              <li>도형 파괴 → XP, 레벨업 시 자동 강화</li>
+              <li>도형 본체 충돌 시 양쪽 다 HP 감소</li>
+              <li>레벨업마다 +1 포인트 (15·30·45 = +2 보너스)</li>
+              <li>좌측 하단 패널에서 8종 스탯 업그레이드</li>
               <li>다른 플레이어 처치 시 큰 보상</li>
             </ul>
           </div>
@@ -480,6 +556,45 @@ export default function DiepPage() {
                   <span className="dp-lb-mass">Lv{p.level||1}</span>
                 </div>
               ))}
+            </div>
+
+            <div className="dp-upgrade">
+              <div className="dp-up-title">
+                업그레이드
+                <span className="dp-up-pts">{hud.statPoints}P</span>
+              </div>
+              {[
+                { k:'hp',     label:'Max Health' },
+                { k:'regen',  label:'Health Regen' },
+                { k:'body',   label:'Body Damage' },
+                { k:'bspd',   label:'Bullet Speed' },
+                { k:'bpen',   label:'Bullet Pen.' },
+                { k:'bdmg',   label:'Bullet Damage' },
+                { k:'reload', label:'Reload' },
+                { k:'mspd',   label:'Movement' },
+              ].map((row, idx) => {
+                const lv = stats[row.k] || 0
+                const max = 7
+                const canBuy = hud.statPoints > 0 && lv < max
+                return (
+                  <div key={row.k} className="dp-up-row">
+                    <button
+                      className="dp-up-btn"
+                      disabled={!canBuy}
+                      onClick={() => { upgrade(row.k); }}
+                      title={`[${idx+1}] ${row.label}`}
+                    >+</button>
+                    <div className="dp-up-mid">
+                      <div className="dp-up-label">{row.label}</div>
+                      <div className="dp-up-bar">
+                        {Array.from({length:max}).map((_,i) => (
+                          <span key={i} className={`dp-up-pip ${i<lv?'on':''}`}/>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </>
         )}
@@ -516,6 +631,22 @@ export default function DiepPage() {
         .dp-lb-rank{width:18px;color:rgba(255,255,255,.45);}
         .dp-lb-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
         .dp-lb-mass{color:rgba(255,255,255,.8);}
+        .dp-hud-pts{background:linear-gradient(135deg,#c9a84c,#f39c12);animation:dp-pulse 1.2s ease-in-out infinite;}
+        .dp-hud-pts strong{color:#fff;}
+        @keyframes dp-pulse{0%,100%{box-shadow:0 0 0 0 rgba(241,196,15,.6);}50%{box-shadow:0 0 0 6px rgba(241,196,15,0);}}
+
+        .dp-upgrade{position:fixed;left:10px;bottom:10px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.7rem .8rem;width:240px;z-index:55;font-family:var(--mono);}
+        .dp-up-title{display:flex;justify-content:space-between;align-items:center;font-family:var(--serif);font-size:.85rem;font-weight:700;color:#3498db;margin-bottom:.55rem;letter-spacing:.04em;}
+        .dp-up-pts{background:#c9a84c;color:#222;border-radius:10px;padding:.05rem .45rem;font-size:.7rem;font-family:var(--mono);}
+        .dp-up-row{display:flex;align-items:center;gap:.45rem;margin-bottom:.32rem;}
+        .dp-up-btn{width:24px;height:24px;border-radius:6px;border:none;background:#27ae60;color:#fff;font-weight:700;cursor:pointer;font-size:.95rem;line-height:1;flex-shrink:0;}
+        .dp-up-btn:disabled{background:rgba(255,255,255,.08);color:rgba(255,255,255,.3);cursor:not-allowed;}
+        .dp-up-btn:not(:disabled):hover{background:#2ecc71;}
+        .dp-up-mid{flex:1;min-width:0;}
+        .dp-up-label{font-size:.68rem;color:rgba(255,255,255,.78);margin-bottom:2px;}
+        .dp-up-bar{display:flex;gap:2px;}
+        .dp-up-pip{flex:1;height:5px;background:rgba(255,255,255,.1);border-radius:1px;}
+        .dp-up-pip.on{background:linear-gradient(90deg,#3498db,#2ecc71);}
       `}</style>
     </main>
   )

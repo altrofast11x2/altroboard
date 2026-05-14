@@ -25,7 +25,7 @@ const WORLD = 6000
 const FOOD_TARGET = 600
 const PLAYER_START_MASS = 20
 const FOOD_MASS = 1
-const MAX_SPEED = 1.4 // 더 느리게
+const MAX_SPEED = 1.0 // 원본 agar.io 비슷하게 (질량 클수록 자연스레 느려짐)
 const SYNC_INTERVAL_MS = 200
 
 const COLORS = ['#e74c3c','#e67e22','#f1c40f','#27ae60','#16a085','#2980b9','#8e44ad','#34495e','#d35400','#1abc9c','#9b59b6']

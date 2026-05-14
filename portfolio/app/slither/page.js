@@ -20,8 +20,8 @@ import { getDatabase, ref, onValue, set, remove, onDisconnect, update, runTransa
 const WORLD = 4500
 const FOOD_TARGET = 500
 const START_LEN = 30
-const BASE_SPEED = 2.4
-const BOOST_SPEED = 4.0
+const BASE_SPEED = 1.6
+const BOOST_SPEED = 2.8
 const BOOST_DRAIN_FRAMES = 8 // 매 N frame 마다 1 길이 감소
 const FOOD_R = 4
 const SEG_R = 8
