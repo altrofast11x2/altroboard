@@ -37,6 +37,10 @@ export default function AdminHome() {
             <strong style={{fontFamily:'var(--serif)',fontSize:'1.05rem',color:'var(--ink)'}}>인증 신청</strong>
             <p style={{fontSize:'.78rem',color:'var(--muted)',marginTop:'.4rem',lineHeight:1.6}}>verified 배지 신청 검토 · 승인/거절</p>
           </Link>
+          <Link href="/admin/cheats" className="card card-accent" style={{textDecoration:'none',color:'inherit',cursor:'pointer'}}>
+            <strong style={{fontFamily:'var(--serif)',fontSize:'1.05rem',color:'var(--ink)'}}>부정행위 의심</strong>
+            <p style={{fontSize:'.78rem',color:'var(--muted)',marginTop:'.4rem',lineHeight:1.6}}>체스 항복 남용 등 자동 감지된 의심 사례 검토</p>
+          </Link>
         </div>
       </div>
     </main>

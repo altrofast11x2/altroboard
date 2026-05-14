@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import VerifiedBadge from '../components/VerifiedBadge'
 
 export default function BoardPage() {
   const [posts, setPosts] = useState([])
@@ -78,7 +79,11 @@ export default function BoardPage() {
                         : <span style={{color:'var(--border-dark)',fontSize:'0.75rem',fontFamily:'var(--mono)'}}>-</span>
                       }
                     </td>
-                    <td className="meta">{p.author}</td>
+                    <td className="meta">
+                      <span style={{display:'inline-flex',alignItems:'center',gap:'.2rem'}}>
+                        {p.author}{p.authorVerified && <VerifiedBadge size={11}/>}
+                      </span>
+                    </td>
                     <td className="meta">{p.views ?? 0}</td>
                     <td className="meta">{fmt(p.createdAt)}</td>
                   </tr>

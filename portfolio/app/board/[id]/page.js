@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ReportButton from '../../components/ReportButton'
+import VerifiedBadge from '../../components/VerifiedBadge'
 
 export default function PostPage({ params }) {
   const [post, setPost] = useState(null)
@@ -115,7 +116,10 @@ export default function PostPage({ params }) {
           <span className="badge" style={{marginBottom:'0.75rem',display:'inline-block'}}>{post.category}</span>
           <h1 style={{fontFamily:'var(--serif)',fontSize:'1.4rem',fontWeight:700,marginBottom:'1rem',lineHeight:1.4,color:'var(--ink)'}}>{post.title}</h1>
           <div className="post-meta-bar" style={{marginBottom:'1.25rem'}}>
-            <span><Link href={`/profile/${post.authorId}`} style={{color:'var(--accent)'}}>✍ {post.author}</Link></span>
+            <span style={{display:'inline-flex',alignItems:'center',gap:'.25rem'}}>
+              <Link href={`/profile/${post.authorId}`} style={{color:'var(--accent)'}}>✍ {post.author}</Link>
+              {post.authorVerified && <VerifiedBadge size={14}/>}
+            </span>
             <span>👁 {post.views ?? 0}</span>
             <span>{new Date(post.createdAt).toLocaleString('ko-KR')}</span>
             {post.updatedAt && <span>(수정됨)</span>}
@@ -174,7 +178,11 @@ export default function PostPage({ params }) {
               : comments.map(c => (
                 <div key={c.id} className="comment-item">
                   <div className="comment-header">
-                    <Link href={`/profile/${c.authorId}`} className="comment-author">{c.authorName}</Link>
+                    <Link href={`/profile/${c.authorId}`} className="comment-author">
+                      <span style={{display:'inline-flex',alignItems:'center',gap:'.2rem'}}>
+                        {c.authorName}{c.authorVerified && <VerifiedBadge size={12}/>}
+                      </span>
+                    </Link>
                     <span className="comment-date">{new Date(c.createdAt).toLocaleString('ko-KR')}</span>
                     {(['owner','admin'].includes(user?.role)||user?.id===c.authorId) && (
                       <button className="comment-del" onClick={()=>handleDeleteComment(c.id)}>삭제</button>

@@ -14,6 +14,10 @@ export async function POST(req) {
   const actor = await verifyActor(uid)
   if (!actor) return Response.json({ error: '권한 없음' }, { status: 403 })
 
+  // Owner 자기 자신 삭제 차단 — 사이트 소유자 계정은 본인이 못 지움
+  if (actor.role === 'owner')
+    return Response.json({ error: 'Owner 계정은 본인이 직접 삭제할 수 없습니다.' }, { status: 403 })
+
   const r = await scheduleDeletion(uid, password)
   if (r.error) return Response.json(r, { status: 400 })
   return Response.json(r)

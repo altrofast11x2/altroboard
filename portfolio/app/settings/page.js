@@ -186,32 +186,41 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {/* 계정 삭제 */}
+        {/* 계정 삭제 — Owner 는 비활성화 */}
         <div className="card" style={{borderTop:'3px solid #e74c3c',marginBottom:'2rem'}}>
           <div className="section-header" style={{marginBottom:'.75rem'}}>
             <h2 style={{fontSize:'1rem',color:'#e74c3c'}}>계정 삭제</h2>
             <p>위험 영역</p>
           </div>
-          <p style={{fontSize:'.82rem',color:'var(--muted)',lineHeight:1.75,marginBottom:'1rem'}}>
-            계정 삭제 요청 시 <strong>1주일간 비활성화 상태</strong>로 유지된 후 영구 삭제됩니다.<br/>
-            유예 기간 안에 다시 로그인하면 <strong>활성화 옵션이 표시</strong>되어 계정을 복구할 수 있습니다.<br/>
-            로그아웃 상태에서 기간이 지나면 자동으로 영구 삭제됩니다.
-          </p>
-          {!showDelConfirm ? (
-            <button className="btn btn-danger btn-sm" onClick={()=>setShowDelConfirm(true)}>계정 삭제 진행</button>
+          {user.role === 'owner' ? (
+            <div className="alert alert-error" style={{whiteSpace:'pre-line',lineHeight:1.7}}>
+              Owner 계정은 사이트 소유자 계정이라 본인이 직접 삭제할 수 없어요.
+              {'\n'}소유권 이전이 필요하면 별도 절차로 진행해야 합니다.
+            </div>
           ) : (
             <>
-              {delMsg.text && <div className={`alert alert-${delMsg.type==='error'?'error':'success'}`} style={{whiteSpace:'pre-line'}}>{delMsg.text}</div>}
-              <div className="form-group">
-                <label>비밀번호 확인</label>
-                <input type="password" value={delPw} onChange={e=>setDelPw(e.target.value)} placeholder="현재 비밀번호"/>
-              </div>
-              <div style={{display:'flex',gap:'.5rem'}}>
-                <button className="btn btn-sm" onClick={()=>{setShowDelConfirm(false); setDelPw(''); setDelMsg({type:'',text:''})}} disabled={delLoading}>취소</button>
-                <button className="btn btn-danger btn-sm" onClick={deleteAccount} disabled={delLoading}>
-                  {delLoading?'처리 중...':'정말 삭제하기'}
-                </button>
-              </div>
+              <p style={{fontSize:'.82rem',color:'var(--muted)',lineHeight:1.75,marginBottom:'1rem'}}>
+                계정 삭제 요청 시 <strong>1주일간 비활성화 상태</strong>로 유지된 후 영구 삭제됩니다.<br/>
+                유예 기간 안에 다시 로그인하면 <strong>활성화 옵션이 표시</strong>되어 계정을 복구할 수 있습니다.<br/>
+                로그아웃 상태에서 기간이 지나면 자동으로 영구 삭제됩니다.
+              </p>
+              {!showDelConfirm ? (
+                <button className="btn btn-danger btn-sm" onClick={()=>setShowDelConfirm(true)}>계정 삭제 진행</button>
+              ) : (
+                <>
+                  {delMsg.text && <div className={`alert alert-${delMsg.type==='error'?'error':'success'}`} style={{whiteSpace:'pre-line'}}>{delMsg.text}</div>}
+                  <div className="form-group">
+                    <label>비밀번호 확인</label>
+                    <input type="password" value={delPw} onChange={e=>setDelPw(e.target.value)} placeholder="현재 비밀번호"/>
+                  </div>
+                  <div style={{display:'flex',gap:'.5rem'}}>
+                    <button className="btn btn-sm" onClick={()=>{setShowDelConfirm(false); setDelPw(''); setDelMsg({type:'',text:''})}} disabled={delLoading}>취소</button>
+                    <button className="btn btn-danger btn-sm" onClick={deleteAccount} disabled={delLoading}>
+                      {delLoading?'처리 중...':'정말 삭제하기'}
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

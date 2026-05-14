@@ -498,6 +498,30 @@ export default function ChessRoom() {
               {!gameOver && (
                 <button className={styles.resignBtn} onClick={async()=>{
                   if (!confirm('정말 항복하시겠습니까?')) return
+                  // 항복 abuse 검사 + 기록 (하루 5회 이상이면 차단)
+                  if (meData?.id) {
+                    try {
+                      const r = await fetch('/api/chess/resign', {
+                        method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({ userId: meData.id, userName: meData.name }),
+                      })
+                      const data = await r.json()
+                      if (!r.ok) {
+                        alert(data.error || '항복 처리에 실패했습니다.')
+                        return
+                      }
+                      if (data.reported) {
+                        alert(`⚠ 부정행위 의심으로 보고되었습니다.\n오늘 항복 횟수: ${data.count}회 — 자정까지 체스를 이용할 수 없습니다.`)
+                      } else if (data.count >= 3) {
+                        // 경고: 한도에 근접
+                        const left = (data.limit ?? 5) - data.count
+                        alert(`경고: 오늘 항복 ${data.count}회 — ${left}회 더 항복하면 부정행위 의심으로 오늘 체스 이용이 제한됩니다.`)
+                      }
+                    } catch {
+                      alert('서버와 통신할 수 없습니다.')
+                      return
+                    }
+                  }
                   const winner = myColor==='w'?'b':'w'
                   const winName = winner==='w'?match?.white?.name:match?.black?.name
                   resultShownRef.current = true

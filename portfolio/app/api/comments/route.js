@@ -22,11 +22,22 @@ export async function GET(request) {
   const postId = cleanId(searchParams.get('postId'))
   if (!postId) return Response.json({ error: 'postId required' }, { status: 400 })
 
-  const snap = await get(ref(db, `comments/${postId}`))
+  const [snap, usersSnap] = await Promise.all([
+    get(ref(db, `comments/${postId}`)),
+    get(ref(db, 'users')),
+  ])
   if (!snap.exists()) return Response.json([])
+  const usersAll = usersSnap.exists() ? usersSnap.val() : {}
 
   const comments = Object.entries(snap.val())
-    .map(([id, data]) => ({ id, ...data }))
+    .map(([id, data]) => {
+      const u = data.authorId && usersAll[data.authorId]
+      return {
+        id, ...data,
+        authorVerified: !!(u && u.verified),
+        authorRole: u?.role || null,
+      }
+    })
     .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))
   return Response.json(comments)
 }

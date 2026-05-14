@@ -45,6 +45,8 @@ export default function ChessLobby() {
   const unsubRef    = useRef(null)
   const timeoutRef  = useRef(null)
   const matchingRef = useRef(false)
+  // 항복 abuse 차단 상태 — 5회 이상 항복한 사용자는 자정까지 매칭 불가
+  const [resignBlock, setResignBlock] = useState(null)  // { blocked, count, limit, date }
 
   useEffect(() => {
     const raw = localStorage.getItem('user')
@@ -75,6 +77,13 @@ export default function ChessLobby() {
     get(ref(db,`chess_ratings/${safe}`)).then(snap => {
       if (snap.exists()) setMyElo(snap.val().elo||1200)
     })
+
+    // 항복 abuse 상태 조회 — 로그인 사용자만 (anon 은 추적 안 함)
+    if (raw) {
+      fetch(`/api/chess/resign?userId=${encodeURIComponent(uid)}`).then(r=>r.json()).then(d => {
+        if (d && typeof d.count === 'number') setResignBlock(d)
+      }).catch(()=>{})
+    }
   }, [])
 
   useEffect(() => {
@@ -115,6 +124,10 @@ export default function ChessLobby() {
 
   async function startMatching() {
     if (!myUid || matching) return
+    if (resignBlock?.blocked) {
+      alert(`오늘(${resignBlock.date}) 항복 ${resignBlock.count}회로 부정행위 의심으로 차단되었습니다. 자정 이후 다시 이용해주세요.`)
+      return
+    }
     matchingRef.current = true
     setMatching(true)
     const db = getDb()
@@ -180,6 +193,10 @@ export default function ChessLobby() {
   }
 
   function playVsAI() {
+    if (resignBlock?.blocked) {
+      alert(`오늘(${resignBlock.date}) 항복 ${resignBlock.count}회로 부정행위 의심으로 차단되었습니다. 자정 이후 다시 이용해주세요.`)
+      return
+    }
     router.push(`/chess/room/ai-${safeUidRef.current}-${Date.now()}`)
   }
 
@@ -231,6 +248,18 @@ export default function ChessLobby() {
 
         {tab==='play' && (
           <div className={styles.playPanel}>
+            {resignBlock?.blocked && (
+              <div style={{background:'rgba(231,76,60,.12)',border:'1px solid #e74c3c',borderRadius:8,padding:'.75rem 1rem',marginBottom:'1rem',color:'#ffb3a8',fontSize:'.82rem',lineHeight:1.55}}>
+                <strong style={{color:'#ff7b6e',display:'block',marginBottom:'.25rem'}}>⚠ 부정행위 의심으로 차단됨</strong>
+                오늘({resignBlock.date}) 항복 {resignBlock.count}회 — 한도({resignBlock.limit}) 초과.
+                <br/>자정 이후 다시 이용해주세요.
+              </div>
+            )}
+            {!resignBlock?.blocked && resignBlock?.count >= 3 && (
+              <div style={{background:'rgba(241,196,15,.1)',border:'1px solid #f1c40f',borderRadius:8,padding:'.6rem .9rem',marginBottom:'1rem',color:'#f5d76e',fontSize:'.78rem',lineHeight:1.55}}>
+                경고: 오늘 항복 {resignBlock.count}회 — {(resignBlock.limit ?? 5) - resignBlock.count}회 더 항복하면 부정행위 의심으로 오늘 체스 이용이 제한됩니다.
+              </div>
+            )}
             <div className={styles.sectionLabel}>시간 제어</div>
             <div className={styles.timeGrid}>
               {TIME_CONTROLS.map(t=>(
@@ -249,9 +278,11 @@ export default function ChessLobby() {
                 <button className={styles.cancelBtn} onClick={cancelMatching}>취소</button>
               </div>
             ) : (
-              <button className={styles.matchBtn} onClick={startMatching}>랜덤 매치</button>
+              <button className={styles.matchBtn} onClick={startMatching} disabled={resignBlock?.blocked}>
+                {resignBlock?.blocked ? '오늘 이용 불가' : '랜덤 매치'}
+              </button>
             )}
-            <button className={styles.aiBtn} onClick={playVsAI} disabled={matching}>AI 와 대국</button>
+            <button className={styles.aiBtn} onClick={playVsAI} disabled={matching || resignBlock?.blocked}>AI 와 대국</button>
           </div>
         )}
 

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import VerifiedBadge from '../../components/VerifiedBadge'
 
 export default function ProfilePage({ params }) {
   const [profileUser, setProfileUser] = useState(null)
@@ -99,8 +100,9 @@ export default function ProfilePage({ params }) {
             }
 
             <div style={{ flex: 1, minWidth: '160px' }}>
-              <h1 style={{ fontFamily: 'var(--serif)', fontSize: '1.4rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.2rem' }}>
+              <h1 style={{ fontFamily: 'var(--serif)', fontSize: '1.4rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.2rem', display:'inline-flex', alignItems:'center', gap:'.4rem', flexWrap:'wrap' }}>
                 {profileUser?.name || targetId}
+                {profileUser?.verified && <VerifiedBadge size={18}/>}
               </h1>
               {profileUser?.bio && (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text)', marginBottom: '0.5rem', lineHeight: 1.6 }}>{profileUser.bio}</p>

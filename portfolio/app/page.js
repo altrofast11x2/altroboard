@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 const StoryStrip      = lazy(() => import('./components/StoryStrip'))
 const SuggestedUsers  = lazy(() => import('./components/SuggestedUsers'))
 const Chatbot         = lazy(() => import('./components/Chatbot'))
+import VerifiedBadge from './components/VerifiedBadge'
 
 // 인스타그램 스타일 단일 컬럼 피드
 // - 메인: 스토리바 + 게시글 카드(한 칸당 하나, 사진 큼) 세로 나열
@@ -94,7 +95,7 @@ export default function Home() {
     } catch {}
   }
 
-  // 더블클릭 = Instagram 하트 토글
+  // 더블클릭 = Instagram 하트 토글 (사진 + 본문 영역 어디든)
   const handleMediaDoubleClick = (p) => toggleLike(p, { onlyAddOnDouble: true })
   // 모바일 더블탭 폴백
   const handleMediaTouchEnd = (p) => {
@@ -106,6 +107,25 @@ export default function Home() {
     } else {
       lastTapRef.current[p.id] = now
     }
+  }
+
+  // 카드 더블클릭 = 좋아요. 단일 클릭은 게시글 페이지로 이동 (clickTimer 패턴으로 충돌 방지).
+  // 액션바/링크/버튼은 stopPropagation 으로 보호.
+  const clickTimerRef = useRef({})
+  const handleCardClick = (p, e) => {
+    // 인터랙티브 요소(버튼/링크) 클릭은 무시
+    if (e.target.closest('button, a')) return
+    const t = clickTimerRef.current[p.id]
+    if (t) {
+      clearTimeout(t)
+      clickTimerRef.current[p.id] = null
+      handleMediaDoubleClick(p)
+      return
+    }
+    clickTimerRef.current[p.id] = setTimeout(() => {
+      clickTimerRef.current[p.id] = null
+      router.push(`/board/${p.id}`)
+    }, 260)
   }
 
   return (
@@ -146,25 +166,32 @@ export default function Home() {
                   const count = myLike?.count ?? p.likeCount ?? p.likes ?? 0
                   const liked = !!myLike?.liked
                   return (
-                    <article key={p.id} className="feed-post">
+                    <article
+                      key={p.id}
+                      className="feed-post"
+                      onClick={(e) => handleCardClick(p, e)}
+                      onTouchEnd={(e) => {
+                        if (e.target.closest && e.target.closest('button, a')) return
+                        handleMediaTouchEnd(p)
+                      }}
+                    >
                       {/* 헤더 */}
                       <header className="fp-head">
-                        <Link href={`/profile/${p.authorId}`} className="fp-avatar">
+                        <Link href={`/profile/${p.authorId}`} className="fp-avatar" onClick={(e)=>e.stopPropagation()}>
                           {(p.author || '?')[0].toUpperCase()}
                         </Link>
                         <div style={{flex:1,minWidth:0}}>
-                          <div className="fp-author"><Link href={`/profile/${p.authorId}`} style={{color:'inherit',textDecoration:'none'}}>@{p.author}</Link></div>
+                          <div className="fp-author" style={{display:'inline-flex',alignItems:'center',gap:'.25rem'}}>
+                            <Link href={`/profile/${p.authorId}`} style={{color:'inherit',textDecoration:'none'}} onClick={(e)=>e.stopPropagation()}>@{p.author}</Link>
+                            {p.authorVerified && <VerifiedBadge size={13}/>}
+                          </div>
                           <div className="fp-time">{fmtTime(p.createdAt)} · <span className="badge" style={{fontSize:'.6rem',padding:'.05rem .35rem'}}>{p.category}</span></div>
                         </div>
                       </header>
 
-                      {/* 사진 (있을 때만 큼지막하게) — 더블클릭으로 하트 */}
+                      {/* 사진 — 카드 전체가 더블클릭/단일클릭 분기 */}
                       {thumbs.length > 0 && (
-                        <div
-                          className="fp-media"
-                          onDoubleClick={() => handleMediaDoubleClick(p)}
-                          onTouchEnd={() => handleMediaTouchEnd(p)}
-                        >
+                        <div className="fp-media">
                           <img src={thumbs[0]} alt="" draggable={false} />
                           {thumbs.length > 1 && <div className="fp-count">+{thumbs.length - 1}</div>}
                           {pulseId === p.id && (
@@ -174,15 +201,14 @@ export default function Home() {
                               </svg>
                             </div>
                           )}
-                          <Link href={`/board/${p.id}`} className="fp-media-link" aria-label="게시글 보기"/>
                         </div>
                       )}
 
-                      {/* 본문 (사진 아래 / 액션바 위) */}
-                      <Link href={`/board/${p.id}`} className="fp-body">
+                      {/* 본문 — div 로 변경, 카드 클릭 핸들러에서 board 이동 */}
+                      <div className="fp-body">
                         <span className="fp-title">{p.title}</span>
                         {p.content && <div className="fp-content">{p.content.length > 140 ? p.content.slice(0,140)+'…' : p.content}</div>}
-                      </Link>
+                      </div>
 
                       {/* 액션바 (본문 아래) */}
                       <div className="fp-actions">
@@ -269,7 +295,7 @@ export default function Home() {
         .feed-stories{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:.75rem 1rem;}
 
         .feed-posts{display:flex;flex-direction:column;gap:1.25rem;}
-        .feed-post{background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+        .feed-post{background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden;cursor:pointer;user-select:none;}
 
         .fp-head{display:flex;align-items:center;gap:.6rem;padding:.75rem 1rem;border-bottom:1px solid var(--border);}
         .fp-avatar{width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;font-family:var(--serif);font-weight:700;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:.9rem;flex-shrink:0;}
@@ -277,8 +303,7 @@ export default function Home() {
         .fp-time{font-family:var(--mono);font-size:.68rem;color:var(--muted);margin-top:.15rem;display:flex;gap:.4rem;align-items:center;}
 
         .fp-media{display:block;position:relative;aspect-ratio:1/1;background:#000;overflow:hidden;user-select:none;}
-        .fp-media img{width:100%;height:100%;object-fit:cover;display:block;}
-        .fp-media-link{position:absolute;inset:0;}
+        .fp-media img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
         .fp-count{position:absolute;top:.6rem;right:.6rem;background:rgba(0,0,0,.7);color:#fff;font-family:var(--mono);font-size:.7rem;padding:.15rem .5rem;border-radius:10px;z-index:2;}
         .fp-heart-pulse{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;animation:fp-pop .8s ease-out forwards;z-index:3;}
         @keyframes fp-pop{
@@ -290,6 +315,7 @@ export default function Home() {
         }
 
         .fp-body{display:block;padding:.75rem 1rem .25rem;font-size:.92rem;line-height:1.55;color:var(--text);text-decoration:none;word-break:break-word;}
+        .fp-action{cursor:pointer;}
         .fp-title{font-family:var(--serif);font-weight:700;font-size:1.02rem;color:var(--ink);display:block;margin-bottom:.25rem;}
         .fp-content{color:var(--muted);font-size:.85rem;line-height:1.6;}
 
