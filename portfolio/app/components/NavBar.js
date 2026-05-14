@@ -37,8 +37,6 @@ const GAME_ITEMS = [
   { label: 'diep.io',        href: '/diep'      },
   { label: "Texas Hold'em",  href: '/poker'     },
   { label: 'Chess',          href: '/chess'     },
-  { label: 'Blackjack',      href: '/blackjack' },
-  { label: 'Roulette',       href: '/roulette'  },
 ]
 
 export default function NavBar() {
@@ -98,8 +96,7 @@ export default function NavBar() {
   // 게임 페이지에서는 사이드바 대신 좌상단 미니 "홈으로" 버튼만 표시
   const isGamePage = pathname?.startsWith('/agar') || pathname?.startsWith('/slither') ||
                      pathname?.startsWith('/diep') || pathname?.startsWith('/poker/room') ||
-                     pathname?.startsWith('/chess/room') || pathname?.startsWith('/blackjack') ||
-                     pathname?.startsWith('/roulette')
+                     pathname?.startsWith('/chess/room')
 
   if (isGamePage) {
     return (

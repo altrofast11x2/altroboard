@@ -9,8 +9,6 @@ const GAMES = [
   { id:'diep',      name:'diep.io',        desc:'실시간 멀티플레이 · 탱크 전투',      icon:'◊', color:'#3498db', available:true, href:'/diep' },
   { id:'chess',     name:'Chess',          desc:'온라인 체스 · AI 대국',              icon:'♞', color:'#769656', available:true, href:'/chess' },
   { id:'poker',     name:"Texas Hold'em",  desc:'실시간 멀티플레이어 포커',           icon:'♠', color:'#c9a84c', available:true, href:'/poker' },
-  { id:'blackjack', name:'Blackjack',      desc:'딜러와 1:1, 21에 가깝게',            icon:'♥', color:'#e05252', available:true, href:'/blackjack' },
-  { id:'roulette',  name:'Roulette',       desc:'유럽식 룰렛, 다양한 베팅',           icon:'◎', color:'#52b788', available:true, href:'/roulette' },
 ]
 
 export default function GamesPage() {

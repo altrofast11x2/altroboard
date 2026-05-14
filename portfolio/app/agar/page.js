@@ -25,7 +25,7 @@ const WORLD = 6000
 const FOOD_TARGET = 600
 const PLAYER_START_MASS = 20
 const FOOD_MASS = 1
-const MAX_SPEED = 2.4 // 사용자 요청: 너무 빨라서 느리게
+const MAX_SPEED = 1.4 // 더 느리게
 const SYNC_INTERVAL_MS = 200
 
 const COLORS = ['#e74c3c','#e67e22','#f1c40f','#27ae60','#16a085','#2980b9','#8e44ad','#34495e','#d35400','#1abc9c','#9b59b6']
@@ -108,7 +108,7 @@ export default function AgarPage() {
       smooth:  { [myId]: { ...me } },     // 보간된 표시 위치
       foods: {},
       mouse: { x: 0, y: 0 },
-      camera: { x: me.x, y: me.y, zoom: 1 },
+      camera: { x: me.x, y: me.y, zoom: 0.5 },
       myMass: PLAYER_START_MASS,
       myX: me.x, myY: me.y,
     }
@@ -298,9 +298,9 @@ export default function AgarPage() {
         }
       }
 
-      // 카메라 + zoom
-      const targetZoom = Math.max(0.35, 60 / Math.sqrt(s.myMass + 100))
-      s.camera.zoom += (targetZoom - s.camera.zoom) * 0.06
+      // 카메라 + zoom — clamp 추가해서 확대 폭주 방지 + 멀리서 시작
+      const targetZoom = Math.min(0.6, Math.max(0.25, 30 / Math.sqrt(s.myMass + 100)))
+      s.camera.zoom += (targetZoom - s.camera.zoom) * 0.04
       s.camera.x += (s.myX - s.camera.x) * 0.18
       s.camera.y += (s.myY - s.camera.y) * 0.18
 
