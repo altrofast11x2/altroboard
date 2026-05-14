@@ -1,0 +1,82 @@
+.wrap {
+  min-height: calc(100vh - 60px);
+  background: var(--bg);
+  padding: 3rem 2rem;
+}
+.hero {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+.title {
+  font-family: var(--serif);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+}
+.sub {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.grid {
+  max-width: 900px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.2rem;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--gcolor, var(--accent));
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.card:hover:not(.soon) {
+  border-color: var(--gcolor, var(--accent));
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+.soon { opacity: 0.5; cursor: default; }
+.cardIcon {
+  font-size: 2.5rem;
+  color: var(--gcolor, var(--accent));
+}
+.cardName {
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.cardDesc {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: center;
+}
+.soonBadge {
+  font-size: 0.65rem;
+  padding: 3px 10px;
+  border: 1px solid var(--border-dark);
+  color: var(--muted);
+  font-family: var(--mono);
+  letter-spacing: 0.1em;
+}
+.playBtn {
+  font-size: 0.8rem;
+  padding: 6px 20px;
+  background: var(--gcolor, var(--accent));
+  color: #fff;
+  font-family: var(--mono);
+  font-weight: 700;
+  margin-top: 0.3rem;
+}
+.card:not(.soon):hover .playBtn {
+  opacity: 0.85;
+}

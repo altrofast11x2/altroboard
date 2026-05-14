@@ -1,0 +1,838 @@
+'use client'
+import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
+import { compressVideoSafe, shouldCompress } from '@/lib/videoCompress'
+
+// ── 인라인 SVG 아이콘 (이모지 대신) ───────────────────────────────
+const Icon = {
+  HeartO: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+    </svg>
+  ),
+  HeartF: (p) => (
+    <svg viewBox="0 0 24 24" fill="#ff3b5c" stroke="#ff3b5c" strokeWidth="2" strokeLinejoin="round" {...p}>
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+    </svg>
+  ),
+  Comment: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+    </svg>
+  ),
+  Eye: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  ),
+  Share: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <line x1="22" y1="2" x2="11" y2="13"/>
+      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+    </svg>
+  ),
+  Trash: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6M14 11v6"/>
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+    </svg>
+  ),
+  Mute: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <line x1="23" y1="9" x2="17" y2="15"/>
+      <line x1="17" y1="9" x2="23" y2="15"/>
+    </svg>
+  ),
+  Unmute: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>
+    </svg>
+  ),
+}
+
+export default function ShortsPage() {
+  const [user,            setUser]            = useState(null)
+  const [shorts,          setShorts]          = useState([])
+  const [loading,         setLoading]         = useState(true)
+  const [current,         setCurrent]         = useState(0)
+  // 인스타/틱톡처럼 처음엔 음소거로 시작 → 브라우저 autoplay 정책 통과 보장
+  const [muted,           setMuted]           = useState(true)
+  const [showUpload,      setShowUpload]      = useState(false)
+  const [heartPos,        setHeartPos]        = useState(null)
+  const [loginPrompt,     setLoginPrompt]     = useState(null) // { idx, x, y }
+
+  // 댓글
+  const [showComments,    setShowComments]    = useState(false)
+  const [comments,        setComments]        = useState([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [commentText,     setCommentText]     = useState('')
+  const [commentShortId,  setCommentShortId]  = useState(null)
+
+  // 업로드
+  const [uploadType,    setUploadType]    = useState('video') // 'video' | 'image'
+  const [videoFile,     setVideoFile]     = useState(null)
+  const [videoPreview,  setVideoPreview]  = useState(null)
+  const [imageFile,     setImageFile]     = useState(null)
+  const [imagePreview,  setImagePreview]  = useState(null)
+  const [title,         setTitle]         = useState('')
+  const [desc,          setDesc]          = useState('')
+  const [uploading,     setUploading]     = useState(false)
+  const [uploadProg,    setUploadProg]    = useState(0)
+  const [uploadMsg,     setUploadMsg]     = useState('')
+  const [uploadErr,     setUploadErr]     = useState('')
+
+  // 음악 (파일 업로드만)
+  const [audioFile,     setAudioFile]     = useState(null)
+  const [audioName,     setAudioName]     = useState('')
+
+  const containerRef   = useRef(null)
+  const videoFileRef   = useRef(null)
+  const imageFileRef   = useRef(null)
+  const audioFileRef   = useRef(null)
+  const videoRefs      = useRef({})
+  const audioElRef     = useRef(null)
+  const touchStart     = useRef(null)
+  const lastTap        = useRef({})
+  const commentsEndRef = useRef(null)
+
+  useEffect(() => {
+    const u = localStorage.getItem('user')
+    if (u) setUser(JSON.parse(u))
+    loadShorts()
+  }, [])
+
+  // 영상 전환 + 조회 카운트
+  useEffect(() => {
+    Object.entries(videoRefs.current).forEach(([idx, el]) => {
+      if (!el) return
+      const i = parseInt(idx)
+      if (i === current) {
+        el.muted = muted
+        el.volume = muted ? 0 : (shorts[i]?.audioUrl ? 0.3 : 1)
+        el.play().catch(() => {})
+        if (shorts[i]) fetch(`/api/shorts/${shorts[i].id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'view', userId: user?.id || 'anon' }),
+        }).catch(() => {})
+      } else { el.pause(); el.currentTime = 0 }
+    })
+    // 배경음악 재생/정리
+    if (audioElRef.current) { audioElRef.current.pause(); audioElRef.current.src = '' }
+    const s = shorts[current]
+    if (s?.audioUrl && !muted) {
+      const a = new Audio(s.audioUrl)
+      a.loop = true; a.volume = 0.7; a.muted = false
+      a.play().catch(() => {}); audioElRef.current = a
+    }
+    return () => { if (audioElRef.current) audioElRef.current.pause() }
+  }, [current, shorts])
+
+  // muted 토글 — 즉시 모든 비디오/오디오에 적용
+  useEffect(() => {
+    Object.values(videoRefs.current).forEach(el => {
+      if (!el) return
+      el.muted = muted
+      el.volume = muted ? 0 : (shorts[current]?.audioUrl ? 0.3 : 1)
+    })
+    if (audioElRef.current) {
+      audioElRef.current.muted = muted
+      audioElRef.current.volume = muted ? 0 : 0.7
+      if (muted) {
+        audioElRef.current.pause()
+      } else {
+        // 음소거 해제 시 배경음악 재생 재개 (혹은 새로 생성)
+        const s = shorts[current]
+        if (s?.audioUrl) {
+          if (!audioElRef.current.src || audioElRef.current.src === '') {
+            audioElRef.current = new Audio(s.audioUrl)
+            audioElRef.current.loop = true
+            audioElRef.current.volume = 0.7
+          }
+          audioElRef.current.play().catch(() => {})
+        }
+      }
+    } else if (!muted && shorts[current]?.audioUrl) {
+      // audioElRef 가 없는데 muted 해제 → 새로 만들기
+      const a = new Audio(shorts[current].audioUrl)
+      a.loop = true; a.volume = 0.7
+      a.play().catch(() => {})
+      audioElRef.current = a
+    }
+  }, [muted])
+
+  const loadShorts = async () => {
+    setLoading(true)
+    const res = await fetch('/api/shorts')
+    const data = await res.json()
+    setShorts(Array.isArray(data) ? data : [])
+    setLoading(false)
+  }
+
+  const goTo = (idx) => {
+    if (idx < 0 || idx >= shorts.length) return
+    setCurrent(idx)
+    if (showComments && shorts[idx]) openComments(shorts[idx].id)
+  }
+
+  const onWheel      = (e) => { e.preventDefault(); if (e.deltaY > 40) goTo(current + 1); else if (e.deltaY < -40) goTo(current - 1) }
+  const onTouchStart = (e) => { touchStart.current = e.touches[0].clientY }
+  const onTouchEnd   = (e) => {
+    if (touchStart.current === null) return
+    const dy = touchStart.current - e.changedTouches[0].clientY
+    if (dy > 60) goTo(current + 1); else if (dy < -60) goTo(current - 1)
+    touchStart.current = null
+  }
+
+  const handleTap = (idx, shortId, e) => {
+    const now = Date.now()
+    if (now - (lastTap.current[idx] || 0) < 300) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const x = (e.changedTouches?.[0]?.clientX || e.clientX) - rect.left
+      const y = (e.changedTouches?.[0]?.clientY || e.clientY) - rect.top
+      // 비로그인 — 로그인 유도 안내
+      if (!user) {
+        setLoginPrompt({ idx, x, y })
+        setTimeout(() => setLoginPrompt(null), 2400)
+      } else {
+        setHeartPos({ idx, x, y }); setTimeout(() => setHeartPos(null), 900)
+        handleLike(shortId, idx)
+      }
+    }
+    lastTap.current[idx] = now
+  }
+
+  const handleLike = async (shortId, idx) => {
+    if (!user) { setLoginPrompt({ idx, x: 0, y: 0 }); setTimeout(()=>setLoginPrompt(null), 2400); return }
+    const res = await fetch(`/api/shorts/${shortId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'like', userId: user.id }),
+    })
+    const data = await res.json()
+    setShorts(prev => prev.map((s, i) => i === idx
+      ? { ...s, likes: data.likes, likedBy: { ...(s.likedBy || {}), [user.id]: data.liked ? true : undefined } }
+      : s))
+  }
+
+  const handleDelete = async (shortId) => {
+    if (!user || !confirm('쇼츠를 삭제할까요?')) return
+    await fetch(`/api/shorts/${shortId}`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, role: user.role }),
+    })
+    loadShorts(); setCurrent(0); setShowComments(false)
+  }
+
+  // ── 댓글 ──
+  const openComments = async (shortId) => {
+    setCommentShortId(shortId)
+    setShowComments(true)
+    setCommentsLoading(true)
+    const res = await fetch(`/api/shorts/${shortId}/comments`)
+    const data = await res.json()
+    setComments(Array.isArray(data) ? data : [])
+    setCommentsLoading(false)
+    setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+  }
+
+  const closeComments = () => { setShowComments(false); setCommentText('') }
+
+  const submitComment = async () => {
+    if (!user || !commentText.trim() || !commentShortId) return
+    const res = await fetch(`/api/shorts/${commentShortId}/comments`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, userName: user.name, userAvatar: user.avatar || null, text: commentText }),
+    })
+    const data = await res.json()
+    if (data.id) {
+      setComments(prev => [...prev, data])
+      setCommentText('')
+      // 댓글 수 UI 즉시 반영
+      setShorts(prev => prev.map(s => s.id === commentShortId
+        ? { ...s, commentCount: (s.commentCount || 0) + 1 }
+        : s))
+      setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    }
+  }
+
+  const deleteComment = async (commentId) => {
+    if (!user || !commentShortId) return
+    await fetch(`/api/shorts/${commentShortId}/comments?commentId=${commentId}&userId=${user.id}&role=${user.role}`, { method: 'DELETE' })
+    setComments(prev => prev.filter(c => c.id !== commentId))
+    setShorts(prev => prev.map(s => s.id === commentShortId
+      ? { ...s, commentCount: Math.max(0, (s.commentCount || 0) - 1) }
+      : s))
+  }
+
+  const resetForm = () => {
+    setUploadType('video')
+    setVideoFile(null); setVideoPreview(null)
+    setImageFile(null); setImagePreview(null)
+    setTitle(''); setDesc('')
+    setUploadErr(''); setUploadProg(0); setUploadMsg('')
+    setAudioFile(null); setAudioName('')
+    if (videoFileRef.current) videoFileRef.current.value = ''
+    if (imageFileRef.current) imageFileRef.current.value = ''
+    if (audioFileRef.current) audioFileRef.current.value = ''
+  }
+
+  const handleUpload = async () => {
+    if (!user) return
+    if (uploadType === 'video' && !videoFile) return
+    if (uploadType === 'image' && !imageFile) return
+
+    setUploading(true); setUploadProg(0); setUploadErr('')
+
+    try {
+      let videoUrl = null, imageUrl = null, audioUrl = null, audioTitle = null
+
+      if (uploadType === 'video') {
+        // 1) 압축 (필요 시) — 큰 영상은 100MB 이하로 줄임
+        let fileToUpload = videoFile
+        const need = await shouldCompress(videoFile).catch(() => false)
+        if (need) {
+          setUploadMsg('영상 압축 중... 0%')
+          fileToUpload = await compressVideoSafe(videoFile, {
+            maxWidth: 1280, maxHeight: 1280, bitrate: 1_500_000, fps: 30,
+            onProgress: (p) => {
+              const pct = Math.round(p * 100)
+              setUploadProg(Math.min(99, pct))
+              setUploadMsg(`영상 압축 중... ${pct}%`)
+            },
+          })
+          setUploadProg(0)
+        }
+
+        // 2) 서버 라우트로 직접 multipart 업로드 (dev/prod 모두 동작)
+        setUploadMsg('영상 업로드 중...')
+        const xhr = new XMLHttpRequest()
+        const fd = new FormData()
+        fd.append('file', fileToUpload)
+        const uploadResult = await new Promise((resolve) => {
+          xhr.open('POST', '/api/upload-video-direct')
+          xhr.upload.onprogress = (ev) => {
+            if (ev.lengthComputable) {
+              const pct = Math.round(ev.loaded / ev.total * 100)
+              setUploadProg(pct)
+              setUploadMsg(`영상 업로드 중... ${pct}%`)
+            }
+          }
+          xhr.onload = () => {
+            try { resolve(JSON.parse(xhr.responseText || '{}')) }
+            catch { resolve({ error: '서버 응답 오류' }) }
+          }
+          xhr.onerror = () => resolve({ error: '네트워크 오류' })
+          xhr.send(fd)
+        })
+        if (!uploadResult?.url) {
+          setUploadErr(uploadResult?.error || '영상 업로드 실패')
+          setUploading(false)
+          return
+        }
+        videoUrl = uploadResult.url
+      } else {
+        setUploadMsg('이미지 업로드 중...')
+        const fd = new FormData(); fd.append('file', imageFile)
+        const res = await fetch('/api/upload', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (!res.ok || !data.url) { setUploadErr(data.error || '이미지 업로드 실패'); setUploading(false); return }
+        imageUrl = data.url
+        setUploadProg(100)
+      }
+
+      // 음악 파일 업로드
+      if (audioFile) {
+        setUploadMsg('오디오 업로드 중...')
+        const afd = new FormData(); afd.append('file', audioFile)
+        const ar = await fetch('/api/upload-audio', { method: 'POST', body: afd })
+        const ad = await ar.json()
+        if (ar.ok && ad.url) { audioUrl = ad.url; audioTitle = audioName }
+      }
+
+      setUploadMsg('등록 중...')
+      const saveRes = await fetch('/api/shorts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          authorId: user.id, authorName: user.name, authorAvatar: user.avatar || null,
+          videoUrl, imageUrl,
+          mediaType: uploadType,
+          audioUrl, audioTitle, title, description: desc,
+        }),
+      })
+      const saveData = await saveRes.json()
+      if (!saveRes.ok || saveData.error) { setUploadErr(saveData.error || '등록 실패'); setUploading(false); return }
+      resetForm(); setUploading(false); setShowUpload(false)
+      setShorts(prev => [saveData, ...prev]); setCurrent(0)
+    } catch (e) { setUploadErr(`오류: ${e.message || '알 수 없는 오류'}`); setUploading(false) }
+  }
+
+  // ── 댓글 렌더 공통 ──
+  const renderCommentsList = () => (
+    <>
+      {commentsLoading
+        ? <div className="c-empty">불러오는 중...</div>
+        : comments.length === 0
+          ? <div className="c-empty">첫 댓글을 남겨보세요 💬</div>
+          : comments.map(c => (
+            <div key={c.id} className="c-item">
+              <Link href={`/profile/${c.userId}`}>
+                {c.userAvatar
+                  ? <img src={c.userAvatar} alt="" className="c-av"/>
+                  : <div className="c-av-ph">{(c.userName || '?')[0].toUpperCase()}</div>
+                }
+              </Link>
+              <div className="c-body">
+                <div className="c-meta">
+                  <span className="c-name">{c.userName}</span>
+                  <span className="c-time">{new Date(c.createdAt).toLocaleDateString('ko-KR')}</span>
+                  {user && (user.id === c.userId || ['owner','admin'].includes(user.role)) &&
+                    <button className="c-del" onClick={() => deleteComment(c.id)}>🗑</button>
+                  }
+                </div>
+                <p className="c-text">{c.text}</p>
+              </div>
+            </div>
+          ))
+      }
+      <div ref={commentsEndRef}/>
+    </>
+  )
+
+  const renderCommentInput = () => user ? (
+    <div className="c-input-row">
+      {user.avatar
+        ? <img src={user.avatar} alt="" className="c-av" style={{flexShrink:0}}/>
+        : <div className="c-av-ph" style={{flexShrink:0}}>{(user.name||'?')[0].toUpperCase()}</div>
+      }
+      <input
+        className="c-input"
+        value={commentText}
+        onChange={e => setCommentText(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && submitComment()}
+        placeholder="댓글 추가..."
+        maxLength={300}
+      />
+      <button className="c-send" onClick={submitComment} disabled={!commentText.trim()}>전송</button>
+    </div>
+  ) : (
+    <div className="c-input-row" style={{justifyContent:'center'}}>
+      <Link href="/login" className="btn btn-primary btn-sm">로그인 후 댓글 작성</Link>
+    </div>
+  )
+
+  const handleShare = async (s) => {
+    const url = `${window.location.origin}/shorts?id=${s.id}`
+    const data = { title: s.title || '쇼츠', text: s.description || '', url }
+    try {
+      if (navigator.share && navigator.canShare?.(data)) {
+        await navigator.share(data)
+        return
+      }
+    } catch {}
+    try {
+      await navigator.clipboard.writeText(url)
+      // 토스트 대신 짧은 알림
+      const t = document.createElement('div')
+      t.textContent = '링크가 복사되었어요'
+      t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:.55rem 1rem;border-radius:20px;font-family:var(--mono);font-size:.78rem;z-index:9999;'
+      document.body.appendChild(t)
+      setTimeout(() => t.remove(), 1800)
+    } catch { alert(url) }
+  }
+
+  // ── 쇼츠 아이템 액션 렌더 공통 ──
+  const renderActions = (s, idx) => {
+    const liked = user && !!(s.likedBy || {})[user.id]
+    const isMine = user && (user.id === s.authorId || ['owner','admin'].includes(user.role))
+    return (
+      <div className="s-actions" onClick={e => e.stopPropagation()}>
+        <Link href={`/profile/${s.authorId}`} className="s-av-link">
+          {s.authorAvatar
+            ? <img src={s.authorAvatar} alt="" className="s-av-img"/>
+            : <div className="s-av-ph">{(s.authorName||'?')[0].toUpperCase()}</div>
+          }
+        </Link>
+        <button className="s-act" onClick={() => handleLike(s.id, idx)} aria-label="좋아요">
+          {liked ? <Icon.HeartF className={`s-act-svg ${liked?'liked':''}`} width={32} height={32}/> : <Icon.HeartO className="s-act-svg" width={32} height={32}/>}
+          <span className="s-act-count">{s.likes || 0}</span>
+        </button>
+        <button className="s-act" onClick={() => openComments(s.id)} aria-label="댓글">
+          <Icon.Comment className="s-act-svg" width={30} height={30}/>
+          <span className="s-act-count">{s.commentCount || 0}</span>
+        </button>
+        <button className="s-act" onClick={() => handleShare(s)} aria-label="공유">
+          <Icon.Share className="s-act-svg" width={28} height={28}/>
+          <span className="s-act-count">공유</span>
+        </button>
+        <div className="s-act" aria-label="조회수">
+          <Icon.Eye className="s-act-svg" width={28} height={28}/>
+          <span className="s-act-count">{s.views || 0}</span>
+        </div>
+        {isMine &&
+          <button className="s-act" onClick={() => handleDelete(s.id)} aria-label="삭제">
+            <Icon.Trash className="s-act-svg" width={26} height={26}/>
+          </button>
+        }
+      </div>
+    )
+  }
+
+  const renderInfo = (s) => (
+    <div className="s-info" onClick={e => e.stopPropagation()}>
+      <Link href={`/profile/${s.authorId}`} className="s-author">@{s.authorName}</Link>
+      {s.title && <p className="s-title">{s.title}</p>}
+      {s.description && <p className="s-desc">{s.description}</p>}
+    </div>
+  )
+
+  if (loading) return (
+    <main className="s-bg">
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'rgba(255,255,255,0.35)',fontFamily:'monospace'}}>
+        로딩 중...
+      </div>
+    </main>
+  )
+
+  return (
+    <main className="s-bg">
+      <div className="s-layout">
+
+        {/* ── 영상 컬럼 ── */}
+        <div className="s-video-col">
+          <div className="s-topbar">
+            <span className="s-topbar-title">쇼츠</span>
+            <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
+              <button onClick={() => setMuted(m => !m)} className="s-icon-btn" aria-label={muted?'음소거 해제':'음소거'}>
+                {muted ? <Icon.Mute width={18} height={18}/> : <Icon.Unmute width={18} height={18}/>}
+              </button>
+              {user
+                ? <button className="s-upload-btn" onClick={() => setShowUpload(true)}>+ 업로드</button>
+                : <Link href="/login" className="s-login-link">로그인 후 업로드</Link>
+              }
+            </div>
+          </div>
+
+          {shorts.length === 0 ? (
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'calc(100vh - 110px)',marginTop:50,color:'rgba(255,255,255,0.4)',gap:'1rem'}}>
+              <div style={{fontSize:'3rem'}}>🎬</div>
+              <p style={{fontFamily:'var(--mono)',fontSize:'0.9rem'}}>아직 쇼츠가 없어요</p>
+              {user && <button className="s-upload-btn" onClick={() => setShowUpload(true)}>첫 쇼츠 올리기</button>}
+            </div>
+          ) : (
+            <>
+              <div className="s-feed" ref={containerRef} onWheel={onWheel} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+
+                {/* PC: 단일 영상 */}
+                <div className="s-pc-frame">
+                  {(() => {
+                    const s = shorts[current]
+                    if (!s) return null
+                    return (
+                      <div className="s-pc-item" onClick={e => handleTap(current, s.id, e)}>
+                        {s.mediaType === 'image' || s.imageUrl
+                          ? <img src={s.imageUrl} alt={s.title||''} className="s-video" style={{objectFit:'contain',background:'#000'}}/>
+                          : <video
+                              key={s.id}
+                              ref={el => {
+                                if (el) {
+                                  el.muted = muted
+                                  el.volume = muted ? 0 : (s.audioUrl ? 0.3 : 1)
+                                  // 마운트 직후 재생 시도
+                                  el.play().catch(() => {})
+                                }
+                                videoRefs.current[current] = el
+                              }}
+                              src={s.videoUrl}
+                              loop playsInline
+                              autoPlay
+                              muted={muted}
+                              className="s-video"/>
+                        }
+                        {heartPos?.idx === current && <div className="s-heart" style={{left:heartPos.x-40,top:heartPos.y-40}}>♥</div>}
+                        {loginPrompt?.idx === current && (
+                          <div className="s-login-prompt">
+                            <div className="s-login-text">영상이 마음에 드시나요?</div>
+                            <Link href="/login" className="s-login-cta">로그인하고 좋아요</Link>
+                          </div>
+                        )}
+                        {s.audioTitle && <div className="s-ticker"><span className="s-ticker-text">{s.audioTitle} · {s.audioTitle}</span></div>}
+                        {renderActions(s, current)}
+                        {renderInfo(s)}
+                        <div className="s-idx">{current + 1} / {shorts.length}</div>
+                      </div>
+                    )
+                  })()}
+                </div>
+
+                {/* 모바일: 전체 스크롤 피드 */}
+                <div className="s-mobile-feed">
+                  {shorts.map((s, idx) => {
+                    const showHeart = heartPos?.idx === idx
+                    return (
+                      <div key={s.id} className="s-mobile-item"
+                        onClick={e => handleTap(idx, s.id, e)}
+                        onTouchEnd={e => handleTap(idx, s.id, e)}>
+                        {s.mediaType === 'image' || s.imageUrl
+                          ? <img src={s.imageUrl} alt={s.title||''} className="s-video" style={{objectFit:'contain',background:'#000'}}/>
+                          : <video
+                              ref={el => {
+                                if (el) {
+                                  el.muted = muted
+                                  el.volume = muted ? 0 : (s.audioUrl ? 0.3 : 1)
+                                }
+                                videoRefs.current[idx] = el
+                              }}
+                              src={s.videoUrl}
+                              loop playsInline
+                              autoPlay
+                              muted={muted}
+                              className="s-video"/>
+                        }
+                        {showHeart && <div className="s-heart" style={{left:heartPos.x-40,top:heartPos.y-40}}>♥</div>}
+                        {loginPrompt?.idx === idx && (
+                          <div className="s-login-prompt">
+                            <div className="s-login-text">영상이 마음에 드시나요?</div>
+                            <Link href="/login" className="s-login-cta">로그인하고 좋아요</Link>
+                          </div>
+                        )}
+                        {s.audioTitle && <div className="s-ticker"><span className="s-ticker-text">{s.audioTitle} ·</span></div>}
+                        {renderActions(s, idx)}
+                        {renderInfo(s)}
+                        <div className="s-idx">{idx + 1} / {shorts.length}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="s-nav">
+                <button className="s-nav-btn" onClick={() => goTo(current - 1)} disabled={current === 0}>↑</button>
+                <button className="s-nav-btn" onClick={() => goTo(current + 1)} disabled={current >= shorts.length - 1}>↓</button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── PC 댓글 패널 ── */}
+        {showComments && (
+          <div className="s-comment-panel">
+            <div className="s-cp-header">
+              <div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                <span className="s-cp-title">댓글</span>
+                <span className="s-cp-count">{comments.length}</span>
+              </div>
+              <button className="s-cp-close" onClick={closeComments}>✕</button>
+            </div>
+            <div className="s-cp-list">{renderCommentsList()}</div>
+            {renderCommentInput()}
+          </div>
+        )}
+      </div>
+
+      {/* ── 모바일 댓글 바텀시트 ── */}
+      {showComments && (
+        <div className="s-mobile-overlay" onClick={closeComments}>
+          <div className="s-mobile-sheet" onClick={e => e.stopPropagation()}>
+            <div className="s-sheet-handle"/>
+            <div className="s-cp-header" style={{padding:'0.75rem 1rem'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                <span className="s-cp-title">댓글</span>
+                <span className="s-cp-count">{comments.length}</span>
+              </div>
+              <button className="s-cp-close" onClick={closeComments}>✕</button>
+            </div>
+            <div className="s-cp-list" style={{maxHeight:'45vh'}}>{renderCommentsList()}</div>
+            {renderCommentInput()}
+          </div>
+        </div>
+      )}
+
+      {/* ── 업로드 모달 ── */}
+      {showUpload && (
+        <div className="modal-overlay" onClick={() => !uploading && (setShowUpload(false), resetForm())}>
+          <div className="upload-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>쇼츠 업로드</h3>
+              <button className="modal-close" onClick={() => !uploading && (setShowUpload(false), resetForm())}>✕</button>
+            </div>
+
+            {/* 타입 선택 */}
+            <div style={{display:'flex',gap:'0.5rem',marginBottom:'1rem'}}>
+              {[['video','영상'],['image','이미지']].map(([t,l]) => (
+                <button key={t} className={`music-tab ${uploadType===t?'active':''}`}
+                  onClick={() => { setUploadType(t); setVideoFile(null); setVideoPreview(null); setImageFile(null); setImagePreview(null) }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+
+            {/* 영상 선택 */}
+            {uploadType === 'video' && (
+              videoPreview
+                ? <><video src={videoPreview} controls className="upload-preview"/>
+                    <button className="reselect-btn" onClick={() => { setVideoFile(null); setVideoPreview(null) }}>다시 선택</button></>
+                : <div className="upload-drop" onClick={() => videoFileRef.current?.click()}>
+                    <p style={{fontFamily:'var(--mono)',fontSize:'0.88rem',color:'var(--text)',fontWeight:600}}>클릭하여 영상 선택</p>
+                    <p style={{fontFamily:'var(--mono)',fontSize:'0.7rem',color:'var(--muted)',marginTop:'0.4rem'}}>mp4 · mov · webm · 크기 제한 없음</p>
+                  </div>
+            )}
+            <input ref={videoFileRef} type="file" accept="video/*" style={{display:'none'}}
+              onChange={e => { const f = e.target.files?.[0]; if (f) { setUploadErr(''); setVideoFile(f); setVideoPreview(URL.createObjectURL(f)) } }}/>
+
+            {/* 이미지 선택 */}
+            {uploadType === 'image' && (
+              imagePreview
+                ? <><img src={imagePreview} alt="" className="upload-preview" style={{objectFit:'contain'}}/>
+                    <button className="reselect-btn" onClick={() => { setImageFile(null); setImagePreview(null) }}>다시 선택</button></>
+                : <div className="upload-drop" onClick={() => imageFileRef.current?.click()}>
+                    <p style={{fontFamily:'var(--mono)',fontSize:'0.88rem',color:'var(--text)',fontWeight:600}}>클릭하여 이미지 선택</p>
+                    <p style={{fontFamily:'var(--mono)',fontSize:'0.7rem',color:'var(--muted)',marginTop:'0.4rem'}}>jpg · png · gif · webp · 5MB 이하</p>
+                  </div>
+            )}
+            <input ref={imageFileRef} type="file" accept="image/*" style={{display:'none'}}
+              onChange={e => { const f = e.target.files?.[0]; if (f) { setUploadErr(''); setImageFile(f); setImagePreview(URL.createObjectURL(f)) } }}/>
+
+            <div className="form-group" style={{marginTop:'0.9rem'}}>
+              <label>제목 <span style={{color:'var(--muted)',fontWeight:300}}>(선택)</span></label>
+              <input placeholder="제목" value={title} onChange={e => setTitle(e.target.value)} maxLength={60}/>
+            </div>
+            <div className="form-group">
+              <label>설명 <span style={{color:'var(--muted)',fontWeight:300}}>(선택)</span></label>
+              <textarea className="upload-textarea" rows={2} placeholder="간단한 설명" value={desc} onChange={e => setDesc(e.target.value)} maxLength={150}/>
+            </div>
+
+            {/* 배경음악 (파일 업로드만) */}
+            <div className="music-panel">
+              <div className="music-panel-title">배경음악 (선택)</div>
+              <button className="btn btn-sm" onClick={() => audioFileRef.current?.click()}>
+                {audioName ? `${audioName.slice(0,25)}${audioName.length>25?'...':''}` : '음악 파일 선택 (mp3/wav · 10MB)'}
+              </button>
+              {audioName && (
+                <button style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',marginLeft:'0.4rem'}}
+                  onClick={() => { setAudioFile(null); setAudioName('') }}>✕</button>
+              )}
+              <input ref={audioFileRef} type="file" accept="audio/*" style={{display:'none'}}
+                onChange={e => { const f = e.target.files?.[0]; if (f) { if (f.size > 10*1024*1024) alert('10MB 이하만 가능합니다'); else { setAudioFile(f); setAudioName(f.name) } } }}/>
+            </div>
+
+            {uploading && (
+              <div style={{marginBottom:'0.75rem'}}>
+                <div style={{background:'var(--surface2)',borderRadius:4,height:6,overflow:'hidden',marginBottom:'0.4rem'}}>
+                  <div style={{background:'var(--accent)',height:'100%',width:`${uploadProg}%`,transition:'width 0.3s'}}/>
+                </div>
+                <p style={{fontFamily:'var(--mono)',fontSize:'0.75rem',color:'var(--accent)'}}>{uploadMsg}</p>
+              </div>
+            )}
+            {uploadErr && <div className="upload-err">⚠ {uploadErr}</div>}
+
+            <button className="btn btn-primary" style={{width:'100%',justifyContent:'center'}}
+              onClick={handleUpload}
+              disabled={uploading || (uploadType==='video' ? !videoFile : !imageFile)}>
+              {uploading ? '업로드 중...' : '업로드'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .s-bg { background:#0a0a0a; min-height:100dvh; }
+        .s-layout { display:flex; height:100dvh; overflow:hidden; }
+        .s-video-col { flex:1; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+        .s-topbar { position:absolute; top:0; left:0; right:0; height:50px; z-index:10; background:rgba(10,10,10,.92); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:space-between; padding:0 1.5rem; border-bottom:1px solid rgba(255,255,255,.07); }
+        .s-topbar-title { font-family:var(--serif); font-weight:700; font-size:1.1rem; color:#fff; }
+        .s-upload-btn { background:var(--accent); color:#fff; border:none; padding:.45rem 1.2rem; border-radius:6px; font-size:.85rem; font-family:var(--mono); font-weight:700; cursor:pointer; }
+        .s-icon-btn { background:rgba(255,255,255,.1); border:none; border-radius:6px; color:#fff; padding:.4rem .75rem; cursor:pointer; font-size:1.1rem; }
+        .s-login-link { font-family:var(--mono); font-size:.78rem; color:rgba(255,255,255,.5); text-decoration:none; }
+        .s-feed { position:relative; flex:1; margin-top:50px; overflow:hidden; }
+        .s-pc-frame { display:flex; align-items:center; justify-content:center; height:100%; width:100%; }
+        .s-pc-item { position:relative; width:min(680px, calc((100vh - 130px) * 9/16)); height:calc(100vh - 130px); border-radius:18px; overflow:hidden; background:#000; box-shadow:0 8px 60px rgba(0,0,0,.9); cursor:pointer; }
+        .s-mobile-feed { display:none; }
+        @media(max-width:767px){
+          .s-pc-frame { display:none; }
+          .s-mobile-feed { display:block; height:calc(100vh - 110px); overflow-y:scroll; scroll-snap-type:y mandatory; -webkit-overflow-scrolling:touch; }
+          .s-mobile-item { position:relative; width:100%; height:calc(100vh - 110px); scroll-snap-align:start; background:#000; overflow:hidden; }
+        }
+        .s-video { width:100%; height:100%; object-fit:cover; display:block; }
+        .s-actions { position:absolute; right:12px; bottom:80px; display:flex; flex-direction:column; gap:16px; align-items:center; z-index:5; }
+        .s-av-link { display:block; }
+        .s-av-img { width:48px; height:48px; border-radius:50%; object-fit:cover; border:2.5px solid #fff; display:block; }
+        .s-av-ph  { width:48px; height:48px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.2rem; font-weight:700; border:2.5px solid #fff; }
+        .s-act { display:flex; flex-direction:column; align-items:center; gap:4px; background:rgba(0,0,0,.4); backdrop-filter:blur(6px); border:none; border-radius:50px; padding:10px 8px; color:#fff; cursor:pointer; min-width:54px; }
+        .s-act:hover { background:rgba(255,255,255,.15); }
+        .s-act-svg { color:#fff; filter:drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+        .s-act-svg.liked { animation:like-pop .3s ease; }
+        .s-act-count { font-family:var(--mono); font-size:.72rem; color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.9); }
+        .s-info { position:absolute; left:14px; bottom:24px; right:72px; z-index:5; }
+        .s-author { color:#fff; font-family:var(--mono); font-size:.85rem; font-weight:700; text-decoration:none; display:block; text-shadow:0 1px 6px rgba(0,0,0,.9); }
+        .s-title { color:#fff; font-family:var(--serif); font-size:1rem; font-weight:700; margin-top:.3rem; text-shadow:0 1px 6px rgba(0,0,0,.9); }
+        .s-desc { color:rgba(255,255,255,.78); font-size:.8rem; margin-top:.15rem; line-height:1.5; text-shadow:0 1px 4px rgba(0,0,0,.8); }
+        .s-idx { position:absolute; top:10px; right:10px; font-family:var(--mono); font-size:.62rem; color:rgba(255,255,255,.4); background:rgba(0,0,0,.5); padding:.12rem .4rem; border-radius:10px; z-index:5; }
+        .s-ticker { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,.6)); padding:.5rem 1rem .4rem; overflow:hidden; z-index:5; }
+        .s-ticker-text { display:inline-block; font-family:var(--mono); font-size:.68rem; color:#fff; white-space:nowrap; animation:ticker 10s linear infinite; }
+        @keyframes ticker{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
+        .s-heart { position:absolute; font-size:5rem; pointer-events:none; animation:heart-burst .9s ease forwards; z-index:20; }
+        .s-login-prompt{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.85);backdrop-filter:blur(8px);padding:1.25rem 1.5rem;border-radius:14px;text-align:center;z-index:25;animation:lp-in .25s ease;display:flex;flex-direction:column;gap:.75rem;align-items:center;min-width:240px;}
+        @keyframes lp-in{from{transform:translate(-50%,-50%) scale(.85);opacity:0;}to{transform:translate(-50%,-50%) scale(1);opacity:1;}}
+        .s-login-text{color:#fff;font-family:var(--serif);font-size:1.05rem;font-weight:700;}
+        .s-login-cta{background:#fff;color:#1a1208;padding:.55rem 1.25rem;border-radius:20px;font-family:var(--mono);font-size:.82rem;font-weight:700;text-decoration:none;}
+        .s-login-cta:hover{background:var(--accent);color:#fff;}
+        @keyframes heart-burst{0%{opacity:0;transform:scale(.3)}30%{opacity:1;transform:scale(1.4)}70%{opacity:1;transform:scale(1.1)}100%{opacity:0;transform:scale(1.3)}}
+        @keyframes like-pop{0%{transform:scale(1)}50%{transform:scale(1.5)}100%{transform:scale(1)}}
+        .s-nav { position:absolute; right:24px; bottom:40px; display:flex; flex-direction:column; gap:8px; z-index:20; }
+        @media(max-width:767px){ .s-nav { display:none; } }
+        .s-nav-btn { width:46px; height:46px; border-radius:50%; background:rgba(255,255,255,.13); border:1px solid rgba(255,255,255,.22); color:#fff; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+        .s-nav-btn:disabled { opacity:.2; cursor:not-allowed; }
+        .s-comment-panel { width:380px; flex-shrink:0; background:#111; border-left:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; }
+        @media(max-width:767px){ .s-comment-panel { display:none; } }
+        .s-cp-header { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.25rem; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; }
+        .s-cp-title { font-family:var(--serif); font-size:1rem; font-weight:700; color:#fff; }
+        .s-cp-count { font-family:var(--mono); font-size:.75rem; color:rgba(255,255,255,.4); }
+        .s-cp-close { background:rgba(255,255,255,.08); border:none; color:rgba(255,255,255,.6); width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:.9rem; display:flex; align-items:center; justify-content:center; }
+        .s-cp-close:hover { background:rgba(255,255,255,.15); color:#fff; }
+        .s-cp-list { flex:1; overflow-y:auto; padding:.75rem 1rem; display:flex; flex-direction:column; gap:.75rem; }
+        .c-empty { color:rgba(255,255,255,.3); font-family:var(--mono); font-size:.8rem; text-align:center; padding:2rem 0; }
+        .c-item { display:flex; gap:.65rem; align-items:flex-start; }
+        .c-av { width:32px; height:32px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+        .c-av-ph { width:32px; height:32px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; color:#fff; font-size:.85rem; font-weight:700; flex-shrink:0; }
+        .c-body { flex:1; min-width:0; }
+        .c-meta { display:flex; align-items:center; gap:.5rem; margin-bottom:.2rem; flex-wrap:wrap; }
+        .c-name { font-family:var(--mono); font-size:.78rem; font-weight:700; color:#fff; }
+        .c-time { font-family:var(--mono); font-size:.68rem; color:rgba(255,255,255,.3); }
+        .c-del { background:none; border:none; color:rgba(255,255,255,.3); cursor:pointer; font-size:.78rem; margin-left:auto; padding:0; }
+        .c-del:hover { color:#e74c3c; }
+        .c-text { font-size:.82rem; color:rgba(255,255,255,.85); line-height:1.5; word-break:break-word; }
+        .c-input-row { display:flex; align-items:center; gap:.6rem; padding:.75rem 1rem; border-top:1px solid rgba(255,255,255,.08); flex-shrink:0; background:#111; }
+        .c-input { flex:1; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:.5rem 1rem; color:#fff; font-family:var(--mono); font-size:.82rem; outline:none; }
+        .c-input:focus { border-color:var(--accent); }
+        .c-input::placeholder { color:rgba(255,255,255,.3); }
+        .c-send { background:var(--accent); color:#fff; border:none; padding:.5rem 1rem; border-radius:20px; font-family:var(--mono); font-size:.78rem; font-weight:700; cursor:pointer; flex-shrink:0; }
+        .c-send:disabled { opacity:.4; cursor:not-allowed; }
+        .s-mobile-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:5000; align-items:flex-end; }
+        @media(max-width:767px){ .s-mobile-overlay { display:flex; } }
+        .s-mobile-sheet { width:100%; background:#111; border-radius:20px 20px 0 0; padding-bottom:env(safe-area-inset-bottom); }
+        .s-sheet-handle { width:40px; height:4px; background:rgba(255,255,255,.2); border-radius:2px; margin:10px auto 0; }
+        .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:8000; display:flex; align-items:center; justify-content:center; padding:1rem; }
+        .upload-modal { background:var(--surface); border-radius:12px; width:min(480px,100%); max-height:90vh; overflow-y:auto; padding:1.5rem; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+        .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+        .modal-header h3 { font-family:var(--serif); font-size:1.1rem; color:var(--ink); }
+        .modal-close { background:none; border:none; font-size:1.1rem; cursor:pointer; color:var(--muted); padding:.2rem .4rem; }
+        .upload-preview { width:100%; border-radius:8px; max-height:220px; object-fit:contain; background:#000; display:block; }
+        .upload-drop { border:2px dashed var(--border); border-radius:8px; padding:2rem; display:flex; flex-direction:column; align-items:center; cursor:pointer; transition:border-color .2s; }
+        .upload-drop:hover { border-color:var(--accent); }
+        .reselect-btn { background:none; border:none; color:var(--accent); font-family:var(--mono); font-size:.72rem; cursor:pointer; margin-top:.4rem; }
+        .upload-textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:2px; padding:.5rem .75rem; color:var(--text); font-family:var(--font); font-size:.875rem; resize:none; outline:none; }
+        .upload-textarea:focus { border-color:var(--accent); }
+        .upload-err { font-family:var(--mono); font-size:.78rem; color:#e74c3c; padding:.5rem; background:rgba(231,76,60,.08); border-radius:4px; border:1px solid rgba(231,76,60,.2); margin-bottom:.75rem; }
+        .music-panel { border:1px solid var(--border); border-radius:6px; padding:.85rem; margin-bottom:.85rem; }
+        .music-panel-title { font-family:var(--mono); font-size:.73rem; color:var(--muted); margin-bottom:.6rem; }
+        .music-tabs { display:flex; gap:.4rem; flex-wrap:wrap; }
+        .music-tab { padding:.28rem .65rem; font-family:var(--mono); font-size:.72rem; cursor:pointer; border-radius:3px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); transition:all .15s; }
+        .music-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+      `}</style>
+    </main>
+  )
+}

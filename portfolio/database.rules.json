@@ -1,0 +1,37 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "posts": {
+      ".read": true,
+      ".write": "auth != null || true",
+      ".indexOn": ["authorId", "createdAt", "category"]
+    },
+    "comments":        { ".read": true,  ".write": true },
+    "likes":           { ".read": true,  ".write": true },
+    "stories":         { ".read": true,  ".write": true },
+    "shorts":          { ".read": true,  ".write": true },
+    "shorts_comments": { ".read": true,  ".write": true },
+    "follows":         { ".read": true,  ".write": true },
+    "study":           { ".read": true,  ".write": true },
+    "chatRooms":       { ".read": true,  ".write": true },
+    "chatMessages":    { ".read": true,  ".write": true },
+    "keepalive":       { ".read": false, ".write": true },
+    "users": {
+      ".indexOn": ["email"],
+      ".read": true,
+      ".write": true
+    },
+    "poker_rooms":     { ".read": true,  ".write": true },
+    "poker_visitors":  { ".read": false, ".write": true },
+    "chess_queue":     { ".read": true,  ".write": true },
+    "chess_matches":   { ".read": true,  ".write": true },
+    "chess_ratings":   { ".read": true,  ".write": true },
+    "agar":            { ".read": true,  ".write": true },
+    "slither":         { ".read": true,  ".write": true },
+    "diep":            { ".read": true,  ".write": true },
+    "galleries":       { ".read": true,  ".write": true },
+    "reports":         { ".read": true,  ".write": true },
+    "verifyRequests":  { ".read": true,  ".write": true }
+  }
+}
