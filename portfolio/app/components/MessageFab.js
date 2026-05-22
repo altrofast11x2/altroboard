@@ -1,18 +1,26 @@
 'use client'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 
-// 메인 페이지 우하단 메시지 플로팅 버튼 (Instagram 스타일).
-// - 로그인 사용자에게만 노출 (메인페이지에서 user 가드)
-// - 안 읽은 메시지가 있으면 빨간 점 + 카운트 뱃지
-// - 클릭 시 /chat 으로 이동
+// 우하단 메시지 플로팅 버튼 (Instagram 스타일).
+// - 로그인 사용자에게만 노출
+// - 안 읽은 메시지 있으면 빨간 점 + 카운트
+// - /chat, /chess/room, /poker/room, /agar, /slither, /diep 페이지에선 자동 숨김
+// - 클릭 시 /chat 이동
+
+const HIDE_ON = ['/chat', '/agar', '/slither', '/diep']
+const HIDE_PREFIX = ['/chess/room', '/poker/room']
 
 export default function MessageFab() {
   const [unread, setUnread] = useState(0)
+  const [loggedIn, setLoggedIn] = useState(false)
+  const pathname = usePathname()
 
   useEffect(() => {
     const raw = typeof window !== 'undefined' && localStorage.getItem('user')
-    if (!raw) return
+    if (!raw) { setLoggedIn(false); return }
+    setLoggedIn(true)
     let cancelled = false
     const tick = async () => {
       try {
@@ -24,9 +32,14 @@ export default function MessageFab() {
       } catch {}
     }
     tick()
-    const t = setInterval(tick, 30000)
+    // 5분 폴링 — Firebase 트래픽 절감
+    const t = setInterval(tick, 300000)
     return () => { cancelled = true; clearInterval(t) }
-  }, [])
+  }, [pathname])   // 페이지 이동 시 다시 체크 (로그인 후/로그아웃 후)
+
+  if (!loggedIn) return null
+  if (HIDE_ON.includes(pathname)) return null
+  if (HIDE_PREFIX.some(p => pathname?.startsWith(p))) return null
 
   return (
     <Link href="/chat" className="msg-fab" aria-label={`메시지 ${unread ? `(읽지 않음 ${unread}개)` : ''}`}>

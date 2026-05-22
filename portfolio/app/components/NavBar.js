@@ -26,11 +26,20 @@ const I = {
   Apps: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>,
   Shop: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>,
   X: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  Search: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+  Activity: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+  Bookmark: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>,
+  Moon: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
+  Flag: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+  Swap: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
+  More: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" {...p}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
 }
 
 // "altroboard 다른 앱" 그룹 — Instagram 의 "Meta의 다른 앱" 패턴
 const OTHER_APPS = [
-  { label: '쇼핑몰', href: '/shop', icon: <I.Shop width={20} height={20}/> },
+  { label: '게임',     href: '/games', icon: <I.Games width={20} height={20}/> },
+  { label: '외부데이터', href: '/data',  icon: <I.Data  width={20} height={20}/> },
+  { label: '쇼핑몰',   href: '/shop',  icon: <I.Shop  width={20} height={20}/> },
 ]
 
 const L = {
@@ -57,8 +66,10 @@ export default function NavBar() {
   const [hover,    setHover]    = useState(false)
   // 모바일 드로어 (640px 이하) 열림 여부
   const [mobileOpen, setMobileOpen] = useState(false)
-  // 다른 앱 (쇼핑몰 등) 펼침 여부
+  // 다른 앱 (게임/외부데이터/쇼핑몰) 펼침 여부
   const [appsOpen, setAppsOpen] = useState(false)
+  // 더 보기 (검색/설정/저장됨/...) 펼침 여부
+  const [moreOpen, setMoreOpen] = useState(false)
   const pathname = usePathname()
   const router   = useRouter()
   const pollRef  = useRef(null)
@@ -103,7 +114,15 @@ export default function NavBar() {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [pathname])
 
-  useEffect(() => { setHover(false); setMobileOpen(false); setAppsOpen(false) }, [pathname])
+  useEffect(() => { setHover(false); setMobileOpen(false); setAppsOpen(false); setMoreOpen(false) }, [pathname])
+
+  // 다크/라이트 모드 토글 (auto → light → dark → light ...)
+  const toggleTheme = () => {
+    const cur = (typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme')) || 'light'
+    const next = cur === 'dark' ? 'light' : 'dark'
+    if (typeof document !== 'undefined') document.documentElement.setAttribute('data-theme', next)
+    try { localStorage.setItem('altroboard_theme', next) } catch {}
+  }
 
   // 모바일 열렸을 때 body scroll lock
   useEffect(() => {
@@ -129,14 +148,14 @@ export default function NavBar() {
     )
   }
 
+  // 메인 NAV — 핵심만. 게임/외부데이터/쇼핑몰은 '다른 앱' 으로 이동.
   const NAV = [
     { href: '/',          label: t.home,      icon: <I.Home width={22} height={22}/> },
-    { href: '/about',     label: t.about,     icon: <I.About width={22} height={22}/> },
     { href: '/board',     label: t.board,     icon: <I.Board width={22} height={22}/> },
     { href: '/galleries', label: t.galleries, icon: <I.Gallery width={22} height={22}/> },
     { href: '/shorts',    label: t.shorts,    icon: <I.Shorts width={22} height={22}/> },
+    { href: '/stories',   label: '스토리',    icon: <I.About width={22} height={22}/> },
     { href: '/study',     label: t.study,     icon: <I.Study width={22} height={22}/> },
-    { href: '/data',      label: t.data,      icon: <I.Data width={22} height={22}/> },
   ]
 
   // 실제 표시 모드 — 호버 시 일시 펼침
@@ -190,12 +209,6 @@ export default function NavBar() {
             </Link>
           ))}
 
-          {/* 게임 — 클릭하면 /games 로 이동 (서브메뉴 없음) */}
-          <Link href="/games" className={`sb-row ${pathname?.startsWith('/games')?'active':''}`}>
-            <span className="sb-icon"><I.Games width={22} height={22}/></span>
-            <span className="sb-label">{t.games}</span>
-          </Link>
-
           {user && (
             <Link href="/chat" className={`sb-row ${pathname?.startsWith('/chat')?'active':''}`}>
               <span className="sb-icon"><I.Message width={22} height={22}/></span>
@@ -212,7 +225,66 @@ export default function NavBar() {
           )}
         </nav>
 
-        {/* 다른 앱 (Meta의 다른 앱 패턴) — 클릭하면 펼침 */}
+        {/* 더 보기 (Instagram 패턴) — 검색/내 활동/저장됨/모드 전환/문제 신고 등 */}
+        <div className="sb-more">
+          <button className="sb-row sb-btn" onClick={()=>setMoreOpen(o=>!o)} aria-expanded={moreOpen}>
+            <span className="sb-icon"><I.More width={22} height={22}/></span>
+            <span className="sb-label">더 보기</span>
+            <span className="sb-caret" style={{transform: moreOpen ? 'rotate(90deg)' : 'none'}}>
+              <I.Chevron width={14} height={14}/>
+            </span>
+          </button>
+          {moreOpen && (
+            <div className="sb-sublist">
+              <Link href="/board?q=" className="sb-row sb-sub">
+                <span className="sb-icon"><I.Search width={20} height={20}/></span>
+                <span className="sb-label">검색</span>
+              </Link>
+              {user && (
+                <Link href="/settings" className={`sb-row sb-sub ${pathname==='/settings'?'active':''}`}>
+                  <span className="sb-icon"><I.Settings width={20} height={20}/></span>
+                  <span className="sb-label">설정</span>
+                </Link>
+              )}
+              {user && (
+                <Link href="/mypage" className={`sb-row sb-sub ${pathname==='/mypage'?'active':''}`}>
+                  <span className="sb-icon"><I.Activity width={20} height={20}/></span>
+                  <span className="sb-label">내 활동</span>
+                </Link>
+              )}
+              {user && (
+                <Link href="/saved" className={`sb-row sb-sub ${pathname==='/saved'?'active':''}`}>
+                  <span className="sb-icon"><I.Bookmark width={20} height={20}/></span>
+                  <span className="sb-label">저장됨</span>
+                </Link>
+              )}
+              <button className="sb-row sb-sub sb-btn" onClick={toggleTheme}>
+                <span className="sb-icon"><I.Moon width={20} height={20}/></span>
+                <span className="sb-label">모드 전환</span>
+              </button>
+              {user && (
+                <Link href="/admin/reports" className="sb-row sb-sub">
+                  <span className="sb-icon"><I.Flag width={20} height={20}/></span>
+                  <span className="sb-label">문제 신고</span>
+                </Link>
+              )}
+              {user && (
+                <Link href="/login" className="sb-row sb-sub">
+                  <span className="sb-icon"><I.Swap width={20} height={20}/></span>
+                  <span className="sb-label">계정 전환</span>
+                </Link>
+              )}
+              {user && (
+                <button className="sb-row sb-sub sb-btn" onClick={logout}>
+                  <span className="sb-icon"><I.Logout width={20} height={20}/></span>
+                  <span className="sb-label">로그아웃</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 다른 앱 (Meta의 다른 앱 패턴) — 게임/외부데이터/쇼핑몰 */}
         <div className="sb-other-apps">
           <button className="sb-row sb-btn" onClick={()=>setAppsOpen(o=>!o)} aria-expanded={appsOpen}>
             <span className="sb-icon"><I.Apps width={22} height={22}/></span>
@@ -328,11 +400,13 @@ export default function NavBar() {
         .sb-role.owner{background:#c9a84c;color:#1a1208;}
         .sb-role.admin{background:#1a6e3a;color:#fff;}
 
-        /* 다른 앱 펼침 영역 */
-        .sb-other-apps{border-top:1px solid rgba(255,255,255,.06);padding:.4rem 0;}
-        .sidebar.collapsed .sb-other-apps .sb-caret{display:none;}
+        /* 다른 앱 / 더 보기 펼침 영역 */
+        .sb-more,.sb-other-apps{border-top:1px solid rgba(255,255,255,.06);padding:.3rem 0;}
+        .sidebar.collapsed .sb-other-apps .sb-caret,
+        .sidebar.collapsed .sb-more .sb-caret{display:none;}
         .sb-sublist{padding-left:0;}
         .sidebar.expanded .sb-sublist .sb-sub{padding-left:2.5rem;}
+        .sb-sub{font-size:.85rem;}
 
         /* 모바일 전용 상단 바 — 기본 숨김, 640px 이하에서 표시 */
         .mob-top{display:none;}

@@ -18,16 +18,26 @@ const db = getDatabase(app)
 
 // likes + users 노드를 한 번에 읽어 게시글마다 likeCount, authorVerified 를 붙인다.
 // 클라이언트가 게시글별로 fetch 호출 안 해도 되게.
-export async function getPosts() {
+//
+// Firebase 트래픽 절감: 같은 서버 인스턴스가 60초 안에 다시 호출되면 메모리 캐시 재사용.
+let _postsCache = null
+let _postsCacheAt = 0
+const POSTS_CACHE_MS = 60_000
+
+export async function getPosts({ noCache = false } = {}) {
+  const now = Date.now()
+  if (!noCache && _postsCache && (now - _postsCacheAt) < POSTS_CACHE_MS) {
+    return _postsCache
+  }
   const [postsSnap, likesSnap, usersSnap] = await Promise.all([
     get(ref(db, 'posts')),
     get(ref(db, 'likes')),
     get(ref(db, 'users')),
   ])
-  if (!postsSnap.exists()) return []
+  if (!postsSnap.exists()) { _postsCache = []; _postsCacheAt = now; return [] }
   const likesAll = likesSnap.exists() ? likesSnap.val() : {}
   const usersAll = usersSnap.exists() ? usersSnap.val() : {}
-  return Object.entries(postsSnap.val())
+  const list = Object.entries(postsSnap.val())
     .map(([id, data]) => {
       const likeMap = likesAll[id]
       const likeCount = likeMap && typeof likeMap === 'object' ? Object.keys(likeMap).length : 0
@@ -37,7 +47,13 @@ export async function getPosts() {
       return { id, ...data, likeCount, authorVerified, authorRole }
     })
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  _postsCache = list
+  _postsCacheAt = now
+  return list
 }
+
+// 새 글 작성/수정/삭제 시 캐시 무효화
+export function invalidatePostsCache() { _postsCache = null; _postsCacheAt = 0 }
 
 export async function getPost(id) {
   const [snap, likesSnap] = await Promise.all([
@@ -63,6 +79,7 @@ export async function createPost(data) {
   const newRef = push(ref(db, 'posts'))
   const post = { ...data, views: 0, createdAt: new Date().toISOString() }
   await set(newRef, post)
+  invalidatePostsCache()
   return { id: newRef.key, ...post }
 }
 
@@ -77,11 +94,13 @@ export async function updatePost(id, data) {
   if ('imageUrl' in data) updateData.imageUrl = data.imageUrl
   updateData.updatedAt = new Date().toISOString()
   await update(postRef, updateData)
+  invalidatePostsCache()
   return { id, ...snap.val(), ...updateData }
 }
 
 export async function deletePost(id) {
   await remove(ref(db, `posts/${id}`))
+  invalidatePostsCache()
 }
 
 export async function incrementViews(id) {

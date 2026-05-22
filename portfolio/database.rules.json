@@ -36,6 +36,7 @@
     "cheat_reports":   { ".read": true,  ".write": true },
     "cheat_reports_index": { ".read": true, ".write": true },
     "chess_resigns":   { ".read": true,  ".write": true },
-    "messages_seen":   { ".read": true,  ".write": true }
+    "messages_seen":   { ".read": true,  ".write": true },
+    "saved_posts":     { ".read": true,  ".write": true }
   }
 }

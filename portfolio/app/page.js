@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 // 무거운 컴포넌트는 lazy load — 초기 페이지 렌더 가속
 const StoryStrip      = lazy(() => import('./components/StoryStrip'))
 const SuggestedUsers  = lazy(() => import('./components/SuggestedUsers'))
-const MessageFab      = lazy(() => import('./components/MessageFab'))
 import VerifiedBadge from './components/VerifiedBadge'
 
 // 인스타그램 스타일 단일 컬럼 피드
@@ -24,6 +23,8 @@ export default function Home() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [likedState, setLikedState] = useState({}) // postId -> { count, liked }
+  const [savedSet, setSavedSet] = useState({})     // postId -> bool (저장됨)
+  const [followingSet, setFollowingSet] = useState({}) // authorId -> bool (팔로잉)
   const [user, setUser] = useState(null)
   const [loginPrompt, setLoginPrompt] = useState(false)
   const [pulseId, setPulseId] = useState(null)     // 더블클릭 시 큰 하트 펄스 표시할 postId
@@ -42,16 +43,35 @@ export default function Home() {
       setLikedState(init)
       setLoading(false)
 
-      // 로그인된 사용자라면 어떤 글에 좋아요 눌렀는지 한 번에 확인
+      // 로그인된 사용자라면 어떤 글에 좋아요 눌렀는지, 어떤 글을 저장했는지, 누구를 팔로잉하는지 일괄 조회
       if (u) {
-        await Promise.all(list.map(async (p) => {
+        // 좋아요 여부 — 게시글별 (병렬)
+        Promise.all(list.map(async (p) => {
           try {
             const r = await fetch(`/api/likes?postId=${encodeURIComponent(p.id)}&userId=${encodeURIComponent(u.id)}`)
             if (!r.ok) return
             const { count, liked } = await r.json()
             setLikedState(s => ({ ...s, [p.id]: { count, liked } }))
           } catch {}
-        }))
+        })).catch(()=>{})
+
+        // 저장 목록 (한 번에)
+        fetch(`/api/saved?userId=${encodeURIComponent(u.id)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(d => {
+            if (!d?.savedIds) return
+            const map = {}; d.savedIds.forEach(id => { map[id] = true })
+            setSavedSet(map)
+          }).catch(()=>{})
+
+        // 팔로잉 목록 (한 번에)
+        fetch(`/api/follow?userId=${encodeURIComponent(u.id)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(d => {
+            const ids = Array.isArray(d?.following) ? d.following : []
+            const map = {}; ids.forEach(id => { map[id] = true })
+            setFollowingSet(map)
+          }).catch(()=>{})
       }
     }).catch(() => setLoading(false))
   }, [])
@@ -106,6 +126,43 @@ export default function Home() {
       lastTapRef.current[p.id] = 0
     } else {
       lastTapRef.current[p.id] = now
+    }
+  }
+
+  // 저장 토글
+  const toggleSave = async (postId, e) => {
+    e?.stopPropagation?.()
+    if (!user) { setLoginPrompt(true); return }
+    const wasSaved = !!savedSet[postId]
+    setSavedSet(s => ({ ...s, [postId]: !wasSaved }))   // optimistic
+    try {
+      const r = await fetch('/api/saved', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, postId }),
+      })
+      const d = await r.json()
+      if (typeof d?.saved === 'boolean') setSavedSet(s => ({ ...s, [postId]: d.saved }))
+    } catch {
+      setSavedSet(s => ({ ...s, [postId]: wasSaved }))   // rollback
+    }
+  }
+
+  // 팔로우 토글 (게시글 헤더)
+  const toggleFollow = async (authorId, e) => {
+    e?.stopPropagation?.()
+    if (!user) { setLoginPrompt(true); return }
+    if (authorId === user.id) return  // 본인은 팔로우 불가
+    const wasF = !!followingSet[authorId]
+    setFollowingSet(s => ({ ...s, [authorId]: !wasF }))
+    try {
+      const r = await fetch('/api/follow', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ followerId: user.id, followingId: authorId }),
+      })
+      const d = await r.json()
+      if (typeof d?.isFollowing === 'boolean') setFollowingSet(s => ({ ...s, [authorId]: d.isFollowing }))
+    } catch {
+      setFollowingSet(s => ({ ...s, [authorId]: wasF }))
     }
   }
 
@@ -187,6 +244,15 @@ export default function Home() {
                           </div>
                           <div className="fp-time">{fmtTime(p.createdAt)} · <span className="badge" style={{fontSize:'.6rem',padding:'.05rem .35rem'}}>{p.category}</span></div>
                         </div>
+                        {/* 본인 게시글이 아니면 팔로우 버튼 */}
+                        {user && p.authorId && p.authorId !== user.id && (
+                          <button
+                            className={`fp-follow ${followingSet[p.authorId] ? 'on' : ''}`}
+                            onClick={(e) => toggleFollow(p.authorId, e)}
+                          >
+                            {followingSet[p.authorId] ? '팔로잉' : '팔로우'}
+                          </button>
+                        )}
                       </header>
 
                       {/* 사진 — 카드 전체가 더블클릭/단일클릭 분기 */}
@@ -210,7 +276,7 @@ export default function Home() {
                         {p.content && <div className="fp-content">{p.content.length > 140 ? p.content.slice(0,140)+'…' : p.content}</div>}
                       </div>
 
-                      {/* 액션바 (본문 아래) */}
+                      {/* 액션바 (본문 아래) — 좋아요/댓글/공유 좌측, 저장은 우측 */}
                       <div className="fp-actions">
                         <button className="fp-action" onClick={()=>toggleLike(p)} aria-label="좋아요">
                           <svg viewBox="0 0 24 24" width="26" height="26" fill={liked?'#ff3b5c':'none'} stroke={liked?'#ff3b5c':'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -222,7 +288,8 @@ export default function Home() {
                             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
                           </svg>
                         </Link>
-                        <button className="fp-action" onClick={async ()=>{
+                        <button className="fp-action" onClick={async (e)=>{
+                          e.stopPropagation()
                           const url = `${window.location.origin}/board/${p.id}`
                           if (navigator.share) { try { await navigator.share({ title: p.title, url }); return } catch {} }
                           try { await navigator.clipboard.writeText(url); alert('링크 복사됨') } catch {}
@@ -230,6 +297,13 @@ export default function Home() {
                           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="22" y1="2" x2="11" y2="13"/>
                             <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                          </svg>
+                        </button>
+                        <button className="fp-action fp-save" onClick={(e)=>toggleSave(p.id, e)} aria-label={savedSet[p.id]?'저장 취소':'저장'}>
+                          <svg viewBox="0 0 24 24" width="26" height="26"
+                            fill={savedSet[p.id] ? 'currentColor' : 'none'}
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
                           </svg>
                         </button>
                       </div>
@@ -286,9 +360,7 @@ export default function Home() {
         altroboard © altrofast11x2
       </footer>
 
-      {/* 챗봇 제거 — SNS 컨셉에 부적합. ALTRO AI 도입 시 별도 위치로 재추가 예정. */}
-      {/* 로그인 사용자에게만 메시지 플로팅 버튼 (Instagram 스타일) */}
-      {user && <Suspense fallback={null}><MessageFab /></Suspense>}
+      {/* MessageFab 은 layout.js 에서 전역 마운트 — 여기선 추가 안 함 */}
 
       {/* 로그인 안내 모달 */}
       {loginPrompt && (
@@ -363,6 +435,14 @@ export default function Home() {
         .fp-action{background:none;border:none;color:var(--text);cursor:pointer;padding:.2rem;display:flex;align-items:center;}
         .fp-action:hover{color:var(--accent);}
         .fp-action svg{display:block;}
+        .fp-save{margin-left:auto;}
+        .fp-follow{
+          background:none;border:none;color:var(--accent);font-family:var(--mono);
+          font-size:.78rem;font-weight:700;cursor:pointer;padding:.2rem .35rem;
+          margin-left:auto;flex-shrink:0;
+        }
+        .fp-follow:hover{color:var(--accent2);}
+        .fp-follow.on{color:var(--muted);font-weight:500;}
 
         .fp-likes{padding:0 1rem .25rem;font-family:var(--mono);font-size:.78rem;font-weight:700;color:var(--text);}
         .fp-view-more{display:block;padding:.1rem 1rem .85rem;font-family:var(--mono);font-size:.72rem;color:var(--muted);text-decoration:none;}

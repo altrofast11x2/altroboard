@@ -3,6 +3,7 @@ import NavBar from './components/NavBar'
 import LoadingScreen from './components/LoadingScreen'
 import MessageNotification from './components/MessageNotification'
 import DevToolsGuard from './components/DevToolsGuard'
+import MessageFab from './components/MessageFab'
 
 export const metadata = {
   title: 'altroboard',
@@ -34,6 +35,8 @@ export default function RootLayout({ children }) {
             {children}
           </div>
         </div>
+        {/* 전역 메시지 플로팅 버튼 — 컴포넌트 안에서 로그인/페이지 가드 처리 */}
+        <MessageFab />
       </body>
     </html>
   )
