@@ -90,28 +90,31 @@ function ChatInner() {
     // mark unread 0 locally
     setRooms(prev => prev.map(r => r.roomId === roomId ? { ...r, unread: 0 } : r))
 
-    // 폴링 — Firebase 트래픽 절감을 위해 15초로 늘림 (이전 3초).
-    //   메시지: 15초마다, rooms: 30초마다 (격번), seen: 30초마다 (격번)
+    // 폴링 — 응답성 우선: 5초마다 메시지+seen, rooms 는 15초마다 (3번에 1번).
     let tick = 0
     pollRef.current = setInterval(async () => {
       if (activeRef.current !== roomId) return
       tick++
+      // 메시지 + 상대방 seen 은 매번 — 읽음 표시 빨리 갱신되도록
       await fetchMsgs()
-      if (tick % 2 === 0) {
-        const res = await fetch(`/api/chat?userId=${uidRef.current}`)
-        const data = await res.json()
-        if (Array.isArray(data)) setRooms(data)
-        if (rOtherUid) {
-          try {
-            const sr = await fetch(`/api/chat/seen?userId=${encodeURIComponent(rOtherUid)}&roomId=${encodeURIComponent(roomId)}`)
-            if (sr.ok) {
-              const sd = await sr.json()
-              if (sd?.lastSeenAt) setOtherSeen(Number(sd.lastSeenAt) || 0)
-            }
-          } catch {}
-        }
+      if (rOtherUid) {
+        try {
+          const sr = await fetch(`/api/chat/seen?userId=${encodeURIComponent(rOtherUid)}&roomId=${encodeURIComponent(roomId)}`)
+          if (sr.ok) {
+            const sd = await sr.json()
+            if (sd?.lastSeenAt) setOtherSeen(Number(sd.lastSeenAt) || 0)
+          }
+        } catch {}
       }
-    }, 15000)
+      // rooms 갱신은 3번에 1번 (15초마다) — 좌측 목록은 자주 안 변함
+      if (tick % 3 === 0) {
+        try {
+          const res = await fetch(`/api/chat?userId=${uidRef.current}`)
+          const data = await res.json()
+          if (Array.isArray(data)) setRooms(data)
+        } catch {}
+      }
+    }, 5000)
   }
 
   // ── init ──────────────────────────────────────────────────
@@ -305,9 +308,19 @@ function ChatInner() {
                               </div>
                               <div className={`msg-time ${isMine ? 'right' : ''}`}>
                                 {fmt(m.createdAt)}
-                                {isMine && (
+                                {isMine && !isGroupActive && (
                                   <span className={`msg-read ${isRead ? 'on' : ''}`} title={isRead ? '읽음' : '전송됨'}>
-                                    {isRead ? ' · 읽음' : ' · 전송됨'}
+                                    {/* 카톡/인스타 스타일 — 안읽음: 회색 ✓, 읽음: 파란 ✓✓ */}
+                                    {isRead ? (
+                                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-label="읽음">
+                                        <polyline points="2 12 6 16 14 8"/>
+                                        <polyline points="10 12 14 16 22 8"/>
+                                      </svg>
+                                    ) : (
+                                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-label="전송됨">
+                                        <polyline points="5 12 10 17 19 7"/>
+                                      </svg>
+                                    )}
                                   </span>
                                 )}
                               </div>
@@ -355,10 +368,11 @@ function ChatInner() {
         .bubble-mine{background:var(--accent);border-color:var(--accent);color:#fff;border-radius:12px 12px 2px 12px;}
         .chat-img{max-width:200px;max-height:200px;border-radius:8px;display:block;cursor:zoom-in;margin-bottom:.3rem;}
         .bubble-mine .chat-img{border:2px solid rgba(255,255,255,.3);}
-        .msg-time{font-family:var(--mono);font-size:.62rem;color:var(--muted);margin-top:.2rem;}
-        .msg-time.right{text-align:right;}
-        .msg-read{color:var(--muted);}
-        .msg-read.on{color:#3498db;font-weight:600;}
+        .msg-time{font-family:var(--mono);font-size:.62rem;color:var(--muted);margin-top:.2rem;display:inline-flex;align-items:center;gap:.3rem;}
+        .msg-time.right{text-align:right;justify-content:flex-end;display:flex;}
+        .msg-read{display:inline-flex;align-items:center;color:var(--muted);}
+        .msg-read.on{color:#3498db;}
+        .msg-read svg{display:block;}
         .bubble.has-media{padding:.35rem;}
         .bubble.has-media span{display:block;padding:.15rem .35rem;}
         .chat-input-row{display:flex;gap:.5rem;padding:.8rem 1.2rem;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface2);align-items:center;}

@@ -59,7 +59,8 @@ const GAME_ITEMS = [
 export default function NavBar() {
   const [user,     setUser]     = useState(null)
   const [unread,   setUnread]   = useState(0)
-  const [t,        setT]        = useState(L.ko)
+  // 기본 언어 영어 — 사용자가 설정에서 한국어/일본어로 변경 가능
+  const [t,        setT]        = useState(L.en)
   // 'collapsed' (좁음) | 'expanded' (라벨까지) — 클릭 토글
   const [mode,     setMode]     = useState('collapsed')
   // 호버 상태 — collapsed 일 때 호버하면 일시적으로 펼침
@@ -95,8 +96,9 @@ export default function NavBar() {
   }
 
   useEffect(() => {
-    const lang = localStorage.getItem('cozyboard_lang') || 'ko'
-    setT(L[lang] || L.ko)
+    // 기본 언어 영어 — 저장된 값이 없으면 'en'
+    const lang = localStorage.getItem('cozyboard_lang') || 'en'
+    setT(L[lang] || L.en)
     const saved = localStorage.getItem('altroboard_nav_mode')
     if (saved === 'expanded' || saved === 'collapsed') setMode(saved)
     const raw = localStorage.getItem('user')
@@ -149,12 +151,12 @@ export default function NavBar() {
   }
 
   // 메인 NAV — 핵심만. 게임/외부데이터/쇼핑몰은 '다른 앱' 으로 이동.
+  // 스토리는 메인 페이지 상단 스트립으로만 접근 (Instagram 패턴).
   const NAV = [
     { href: '/',          label: t.home,      icon: <I.Home width={22} height={22}/> },
     { href: '/board',     label: t.board,     icon: <I.Board width={22} height={22}/> },
     { href: '/galleries', label: t.galleries, icon: <I.Gallery width={22} height={22}/> },
     { href: '/shorts',    label: t.shorts,    icon: <I.Shorts width={22} height={22}/> },
-    { href: '/stories',   label: '스토리',    icon: <I.About width={22} height={22}/> },
     { href: '/study',     label: t.study,     icon: <I.Study width={22} height={22}/> },
   ]
 

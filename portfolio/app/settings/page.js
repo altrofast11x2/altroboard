@@ -36,7 +36,7 @@ export default function SettingsPage() {
     if (!raw) { router.push('/login'); return }
     const u = JSON.parse(raw)
     setUser(u)
-    setLanguage(localStorage.getItem('cozyboard_lang') || 'ko')
+    setLanguage(localStorage.getItem('cozyboard_lang') || 'en')
     setTheme(localStorage.getItem('altroboard_theme') || 'light')
   }, [])
 
