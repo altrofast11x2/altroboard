@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import ChatComposer from '../components/ChatComposer'
 
 function ChatInner() {
   const [user,         setUser]         = useState(null)
@@ -11,9 +12,9 @@ function ChatInner() {
   const [messages,     setMessages]     = useState([])
   const [otherName,    setOtherName]    = useState('')
   const [otherUid,     setOtherUid]     = useState('')
-  const [msgText,      setMsgText]      = useState('')
   const [sending,      setSending]      = useState(false)
-  const [imgLoading,   setImgLoading]   = useState(false)
+  // 다른 사용자가 이 방을 마지막으로 본 시각 — 읽음 표시
+  const [otherSeen,    setOtherSeen]    = useState(0)
 
   // 그룹 생성 모달
   const [showCreateGroup, setShowCreateGroup] = useState(false)
@@ -58,6 +59,7 @@ function ChatInner() {
     setOtherUid(rOtherUid)
     setOtherName(rOtherName)
     setMessages([])
+    setOtherSeen(0)
 
     const fetchMsgs = async () => {
       try {
@@ -67,20 +69,43 @@ function ChatInner() {
       } catch (e) { console.error('fetchMsgs error', e) }
     }
 
+    // 내가 이 방을 봤다는 표시 (messages_seen) — 읽음 카운터 0
+    if (uidRef.current && roomId) {
+      fetch('/api/chat/seen', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uidRef.current, roomId }),
+      }).catch(()=>{})
+    }
+    // 상대방의 마지막 본 시각 조회
+    if (rOtherUid) {
+      fetch(`/api/chat/seen?userId=${encodeURIComponent(rOtherUid)}&roomId=${encodeURIComponent(roomId)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.lastSeenAt) setOtherSeen(Number(d.lastSeenAt) || 0) })
+        .catch(()=>{})
+    }
+
     await fetchMsgs()
     scrollBottom()
 
     // mark unread 0 locally
     setRooms(prev => prev.map(r => r.roomId === roomId ? { ...r, unread: 0 } : r))
 
-    // poll every 3s
+    // poll every 3s — 메시지 + 상대방 seen
     pollRef.current = setInterval(async () => {
       if (activeRef.current !== roomId) return
       await fetchMsgs()
-      // also refresh room list
       const res = await fetch(`/api/chat?userId=${uidRef.current}`)
       const data = await res.json()
       if (Array.isArray(data)) setRooms(data)
+      if (rOtherUid) {
+        try {
+          const sr = await fetch(`/api/chat/seen?userId=${encodeURIComponent(rOtherUid)}&roomId=${encodeURIComponent(roomId)}`)
+          if (sr.ok) {
+            const sd = await sr.json()
+            if (sd?.lastSeenAt) setOtherSeen(Number(sd.lastSeenAt) || 0)
+          }
+        } catch {}
+      }
     }, 3000)
   }
 
@@ -122,53 +147,29 @@ function ChatInner() {
   const activeRoomObj = rooms.find(r => r.roomId === activeRoom)
   const isGroupActive = !!activeRoomObj?.isGroup
 
-  // ── send text ─────────────────────────────────────────────
-  const sendMessage = async (e) => {
-    e.preventDefault()
-    const text = msgText.trim()
-    if (!text || !activeRef.current || !user) return
+  // ── unified send (ChatComposer) ─────────────────────────────
+  //   payload: { message, imageUrl, gifUrl }
+  const sendComposer = async ({ message, imageUrl, gifUrl }) => {
+    if (!activeRef.current || !user) return
+    if (!message && !imageUrl && !gifUrl) return
     setSending(true)
     try {
-      const body = isGroupActive
-        ? { fromId: user.id, fromName: user.name, roomId: activeRef.current, message: text }
-        : { fromId: user.id, fromName: user.name, toId: otherUid, toName: otherName, message: text }
+      const base = isGroupActive
+        ? { fromId: user.id, fromName: user.name, roomId: activeRef.current }
+        : { fromId: user.id, fromName: user.name, toId: otherUid, toName: otherName }
+      const body = { ...base }
+      if (message)  body.message  = message
+      if (imageUrl) body.imageUrl = imageUrl
+      if (gifUrl)   body.gifUrl   = gifUrl
       await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      setMsgText('')
       const res  = await fetch(`/api/chat/${activeRef.current}?userId=${user.id}`)
       const data = await res.json()
       if (Array.isArray(data)) setMessages(data)
     } catch (e) { console.error(e) }
     setSending(false)
-  }
-
-  // ── send image ────────────────────────────────────────────
-  const handleImg = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file || !activeRef.current || !user) return
-    setImgLoading(true)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const upRes  = await fetch('/api/upload', { method: 'POST', body: fd })
-      const upData = await upRes.json()
-      if (!upData.url) { alert('이미지 업로드 실패'); setImgLoading(false); return }
-
-      const body = isGroupActive
-        ? { fromId: user.id, fromName: user.name, roomId: activeRef.current, imageUrl: upData.url }
-        : { fromId: user.id, fromName: user.name, toId: otherUid, toName: otherName, imageUrl: upData.url }
-      await fetch('/api/chat', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const res  = await fetch(`/api/chat/${activeRef.current}?userId=${user.id}`)
-      const data = await res.json()
-      if (Array.isArray(data)) setMessages(data)
-    } catch (e) { console.error(e); alert('전송 중 오류가 발생했습니다') }
-    setImgLoading(false)
-    e.target.value = ''
   }
 
   if (!user) return null
@@ -274,26 +275,37 @@ function ChatInner() {
                     messages.map((m, i) => {
                       const isMine   = m.fromId === user.id
                       const showDate = i === 0 || fmtDate(messages[i - 1].createdAt) !== fmtDate(m.createdAt)
+                      // 읽음 표시 — mine 메시지에 대해, 상대방의 마지막 본 시각이 이 메시지보다 늦으면 "읽음"
+                      const msgTs = typeof m.createdAt === 'number' ? m.createdAt : new Date(m.createdAt || 0).getTime()
+                      const isRead = isMine && !isGroupActive && otherSeen > 0 && otherSeen >= msgTs
+                      const mediaUrl = m.imageUrl || m.gifUrl
                       return (
                         <div key={m.id || i}>
                           {showDate && <div className="date-divider">{fmtDate(m.createdAt)}</div>}
                           <div className={`msg-row ${isMine ? 'mine' : 'theirs'}`}>
                             {!isMine && <div className="c-avatar xs">{(m.fromName || '?')[0].toUpperCase()}</div>}
                             <div className="bubble-wrap">
-                              {!isMine && <div className="msg-name">{m.fromName}</div>}
-                              <div className={`bubble ${isMine ? 'bubble-mine' : ''}`}>
-                                {m.imageUrl && (
-                                  <img src={m.imageUrl} alt="사진" className="chat-img"
+                              {!isMine && isGroupActive && <div className="msg-name">{m.fromName}</div>}
+                              <div className={`bubble ${isMine ? 'bubble-mine' : ''} ${mediaUrl ? 'has-media' : ''}`}>
+                                {mediaUrl && (
+                                  <img src={mediaUrl} alt={m.gifUrl ? 'GIF' : '사진'} className="chat-img"
                                     onClick={() => {
                                       const lb = document.createElement('div')
                                       lb.className = 'lightbox'; lb.onclick = () => lb.remove()
-                                      const im = document.createElement('img'); im.src = m.imageUrl
+                                      const im = document.createElement('img'); im.src = mediaUrl
                                       lb.appendChild(im); document.body.appendChild(lb)
                                     }} />
                                 )}
                                 {m.message && <span>{m.message}</span>}
                               </div>
-                              <div className={`msg-time ${isMine ? 'right' : ''}`}>{fmt(m.createdAt)}</div>
+                              <div className={`msg-time ${isMine ? 'right' : ''}`}>
+                                {fmt(m.createdAt)}
+                                {isMine && (
+                                  <span className={`msg-read ${isRead ? 'on' : ''}`} title={isRead ? '읽음' : '전송됨'}>
+                                    {isRead ? ' · 읽음' : ' · 전송됨'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -303,27 +315,7 @@ function ChatInner() {
                   <div ref={bottomRef} />
                 </div>
 
-                <form className="chat-input-row" onSubmit={sendMessage}>
-                  <button type="button" className="img-btn" onClick={() => fileRef.current?.click()} disabled={imgLoading} aria-label="사진 전송">
-                    {imgLoading ? (
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/></svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                    )}
-                  </button>
-                  <input type="file" accept="image/*" ref={fileRef} style={{ display: 'none' }} onChange={handleImg} />
-                  <input
-                    className="chat-input"
-                    placeholder="메시지를 입력하세요..."
-                    value={msgText}
-                    onChange={e => setMsgText(e.target.value)}
-                    disabled={sending || imgLoading}
-                    autoComplete="off"
-                  />
-                  <button type="submit" className="btn btn-primary btn-sm" disabled={sending || imgLoading || !msgText.trim()}>
-                    {sending ? '...' : '전송'}
-                  </button>
-                </form>
+                <ChatComposer onSend={sendComposer} disabled={sending} />
               </>
             )}
           </div>
@@ -360,6 +352,10 @@ function ChatInner() {
         .bubble-mine .chat-img{border:2px solid rgba(255,255,255,.3);}
         .msg-time{font-family:var(--mono);font-size:.62rem;color:var(--muted);margin-top:.2rem;}
         .msg-time.right{text-align:right;}
+        .msg-read{color:var(--muted);}
+        .msg-read.on{color:#3498db;font-weight:600;}
+        .bubble.has-media{padding:.35rem;}
+        .bubble.has-media span{display:block;padding:.15rem .35rem;}
         .chat-input-row{display:flex;gap:.5rem;padding:.8rem 1.2rem;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface2);align-items:center;}
         .chat-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:2px;padding:.5rem .8rem;color:var(--text);font-family:var(--font);font-size:.875rem;outline:none;}
         .chat-input:focus{border-color:var(--accent);}

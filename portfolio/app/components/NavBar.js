@@ -23,7 +23,15 @@ const I = {
   Crown: (p) => <svg viewBox="0 0 24 24" fill="currentColor" {...p}><path d="M2 8l4 4 6-8 6 8 4-4-2 12H4z"/></svg>,
   Shield: (p) => <svg viewBox="0 0 24 24" fill="currentColor" {...p}><path d="M12 2L4 5v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V5z"/></svg>,
   Chevron: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="9 18 15 12 9 6"/></svg>,
+  Apps: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>,
+  Shop: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>,
+  X: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
 }
+
+// "altroboard 다른 앱" 그룹 — Instagram 의 "Meta의 다른 앱" 패턴
+const OTHER_APPS = [
+  { label: '쇼핑몰', href: '/shop', icon: <I.Shop width={20} height={20}/> },
+]
 
 const L = {
   ko: { home:'홈', about:'소개', board:'게시판', galleries:'갤러리', study:'학습', data:'외부데이터', shorts:'쇼츠', games:'게임', msg:'메시지', mypage:'마이페이지', settings:'설정', adminPanel:'관리자', logout:'로그아웃', login:'로그인', admin:'관리자 모드 — 게시글 삭제 · 사용자 정지 · 신고 처리 가능', menu:'메뉴' },
@@ -47,6 +55,10 @@ export default function NavBar() {
   const [mode,     setMode]     = useState('collapsed')
   // 호버 상태 — collapsed 일 때 호버하면 일시적으로 펼침
   const [hover,    setHover]    = useState(false)
+  // 모바일 드로어 (640px 이하) 열림 여부
+  const [mobileOpen, setMobileOpen] = useState(false)
+  // 다른 앱 (쇼핑몰 등) 펼침 여부
+  const [appsOpen, setAppsOpen] = useState(false)
   const pathname = usePathname()
   const router   = useRouter()
   const pollRef  = useRef(null)
@@ -91,7 +103,14 @@ export default function NavBar() {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [pathname])
 
-  useEffect(() => { setHover(false) }, [pathname])
+  useEffect(() => { setHover(false); setMobileOpen(false); setAppsOpen(false) }, [pathname])
+
+  // 모바일 열렸을 때 body scroll lock
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [mobileOpen])
 
   // 게임 페이지에서는 사이드바 대신 좌상단 미니 "홈으로" 버튼만 표시
   const isGamePage = pathname?.startsWith('/agar') || pathname?.startsWith('/slither') ||
@@ -125,16 +144,36 @@ export default function NavBar() {
 
   return (
     <>
+      {/* 모바일 전용 상단 바 — 햄버거 + 로고 (640px 이하에서만 표시) */}
+      <header className="mob-top" aria-label="모바일 상단바">
+        <button className="mob-burger" onClick={()=>setMobileOpen(true)} aria-label={t.menu}>
+          <I.Menu width={22} height={22}/>
+        </button>
+        <Link href="/" className="mob-logo">altro<span style={{color:'var(--accent2)'}}>board</span></Link>
+        {user && (
+          <Link href="/chat" className="mob-msg" aria-label={t.msg}>
+            <I.Message width={20} height={20}/>
+            {unread > 0 && <span className="mob-msg-dot">{unread>9?'9+':unread}</span>}
+          </Link>
+        )}
+      </header>
+
+      {/* 모바일 드로어 오버레이 */}
+      {mobileOpen && <div className="mob-overlay" onClick={()=>setMobileOpen(false)} aria-hidden/>}
+
       <aside
-        className={`sidebar ${visualMode} ${isGamePage?'game-mode':''}`}
+        className={`sidebar ${visualMode} ${isGamePage?'game-mode':''} ${mobileOpen?'mob-open':''}`}
         aria-label="네비게이션"
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
       >
-        {/* 상단 — 로고 + 햄버거 토글 */}
+        {/* 상단 — 로고 + 햄버거 토글 + 모바일 닫기 */}
         <div className="sb-top">
-          <button className="sb-toggle" onClick={toggleMode} aria-label={t.menu}>
+          <button className="sb-toggle desktop-only" onClick={toggleMode} aria-label={t.menu}>
             <I.Menu width={22} height={22}/>
+          </button>
+          <button className="sb-toggle mobile-only" onClick={()=>setMobileOpen(false)} aria-label="닫기">
+            <I.X width={22} height={22}/>
           </button>
           <Link href="/" className="sb-logo">
             <span className="sb-logo-full">altro<span style={{color:'var(--accent2)'}}>board</span></span>
@@ -172,6 +211,27 @@ export default function NavBar() {
             </Link>
           )}
         </nav>
+
+        {/* 다른 앱 (Meta의 다른 앱 패턴) — 클릭하면 펼침 */}
+        <div className="sb-other-apps">
+          <button className="sb-row sb-btn" onClick={()=>setAppsOpen(o=>!o)} aria-expanded={appsOpen}>
+            <span className="sb-icon"><I.Apps width={22} height={22}/></span>
+            <span className="sb-label">altroboard 다른 앱</span>
+            <span className="sb-caret" style={{transform: appsOpen ? 'rotate(90deg)' : 'none'}}>
+              <I.Chevron width={14} height={14}/>
+            </span>
+          </button>
+          {appsOpen && (
+            <div className="sb-sublist">
+              {OTHER_APPS.map(a => (
+                <Link key={a.href} href={a.href} className={`sb-row sb-sub ${pathname===a.href?'active':''}`}>
+                  <span className="sb-icon">{a.icon}</span>
+                  <span className="sb-label">{a.label}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* 하단 — 프로필/설정/로그아웃 */}
         <div className="sb-bottom">
@@ -268,11 +328,52 @@ export default function NavBar() {
         .sb-role.owner{background:#c9a84c;color:#1a1208;}
         .sb-role.admin{background:#1a6e3a;color:#fff;}
 
-        /* 모바일 */
+        /* 다른 앱 펼침 영역 */
+        .sb-other-apps{border-top:1px solid rgba(255,255,255,.06);padding:.4rem 0;}
+        .sidebar.collapsed .sb-other-apps .sb-caret{display:none;}
+        .sb-sublist{padding-left:0;}
+        .sidebar.expanded .sb-sublist .sb-sub{padding-left:2.5rem;}
+
+        /* 모바일 전용 상단 바 — 기본 숨김, 640px 이하에서 표시 */
+        .mob-top{display:none;}
+        .mob-overlay{display:none;}
+        .mobile-only{display:none;}
+
         @media(max-width:640px){
-          .sidebar.collapsed{width:60px;}
-          .sidebar.expanded{width:220px;box-shadow:4px 0 24px rgba(0,0,0,.4);}
-          .sb-spacer{width:60px;}
+          /* 모바일 상단 고정 바 */
+          .mob-top{display:flex;align-items:center;gap:.5rem;position:fixed;top:0;left:0;right:0;height:50px;padding:0 .75rem;background:var(--ink);color:var(--bg);z-index:990;border-bottom:1px solid rgba(0,0,0,.3);box-shadow:0 2px 8px rgba(0,0,0,.2);}
+          .mob-burger{background:none;border:none;color:var(--bg);width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+          .mob-burger:hover{background:rgba(255,255,255,.08);}
+          .mob-logo{font-family:var(--serif);font-weight:700;font-size:1.05rem;color:var(--bg);text-decoration:none;flex:1;}
+          .mob-msg{position:relative;color:var(--bg);width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;text-decoration:none;}
+          .mob-msg:hover{background:rgba(255,255,255,.08);}
+          .mob-msg-dot{position:absolute;top:4px;right:4px;background:var(--accent2);color:#fff;border-radius:10px;font-size:.55rem;font-family:var(--mono);font-weight:700;padding:.05rem .3rem;}
+
+          /* 모바일에서 사이드바 = 드로어 (기본 화면 밖) */
+          .sidebar{transform:translateX(-100%);transition:transform .25s ease;width:260px !important;}
+          .sidebar.mob-open{transform:translateX(0);box-shadow:8px 0 32px rgba(0,0,0,.6);}
+          /* expanded/collapsed 가 아니라 mob-open 기준으로 표시 */
+          .sidebar.collapsed .sb-label,
+          .sidebar.collapsed .sb-caret{display:flex;}
+          .sidebar.collapsed .sb-row{justify-content:flex-start;padding:.65rem .85rem;}
+
+          /* spacer 도 0 — 모바일에선 콘텐츠가 전체 폭 사용 */
+          .sb-spacer{width:0 !important;height:50px;}
+          /* admin 배너 위치 보정 */
+          .sb-banner{top:50px;left:0;}
+
+          /* 사이드바 안의 토글 버튼: 데스크탑용 숨김, 모바일 닫기 버튼 표시 */
+          .desktop-only{display:none;}
+          .mobile-only{display:flex;}
+
+          /* 모바일 드로어 오버레이 */
+          .mob-overlay{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;animation:mo-in .2s ease;}
+          @keyframes mo-in{from{opacity:0}to{opacity:1}}
+        }
+
+        /* 데스크탑 — 모바일 전용 클래스 숨김 */
+        @media(min-width:641px){
+          .desktop-only{display:flex;}
         }
 
         /* 다크 모드 — 사이드바 별도 톤 */

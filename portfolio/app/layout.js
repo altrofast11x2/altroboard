@@ -2,6 +2,7 @@ import './globals.css'
 import NavBar from './components/NavBar'
 import LoadingScreen from './components/LoadingScreen'
 import MessageNotification from './components/MessageNotification'
+import DevToolsGuard from './components/DevToolsGuard'
 
 export const metadata = {
   title: 'altroboard',
@@ -25,6 +26,7 @@ export default function RootLayout({ children }) {
       </head>
       <body suppressHydrationWarning>
         <LoadingScreen />
+        <DevToolsGuard />
         <div className="app-shell">
           <NavBar />
           <div className="app-content">

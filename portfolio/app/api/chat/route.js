@@ -89,15 +89,16 @@ export async function GET(request) {
   return Response.json(rooms)
 }
 
-// POST { fromId, fromName, toId?, roomId?, message?, imageUrl? }
+// POST { fromId, fromName, toId?, roomId?, message?, imageUrl?, gifUrl? }
 // - 1:1: toId 지정 (roomId 자동 계산)
 // - 그룹: roomId 지정 (그룹은 toId 없음)
+// - gifUrl: GIPHY 미디어 URL (이미지와 별도 필드로 구분)
 export async function POST(request) {
   const body = await request.json()
-  const { fromId, fromName, toId, toName, roomId: bodyRoomId, message, imageUrl } = body
+  const { fromId, fromName, toId, toName, roomId: bodyRoomId, message, imageUrl, gifUrl } = body
   const text = (message || '').trim()
 
-  if (!fromId || (!text && !imageUrl))
+  if (!fromId || (!text && !imageUrl && !gifUrl))
     return Response.json({ error: '필수 정보가 없습니다' }, { status: 400 })
   if (!toId && !bodyRoomId)
     return Response.json({ error: 'toId 또는 roomId 필요' }, { status: 400 })
@@ -140,10 +141,11 @@ export async function POST(request) {
   const msgRef = push(ref(db, `chatMessages/${roomId}`))
   const msg = { fromId, fromName: resolvedFromName, message: text, createdAt: now }
   if (imageUrl) msg.imageUrl = imageUrl
+  if (gifUrl)   msg.gifUrl   = gifUrl
   await set(msgRef, msg)
 
   // 보낸이 외 모든 멤버 unread +1
-  const preview = imageUrl ? (text ? text.slice(0, 60) : '사진') : text.slice(0, 60)
+  const preview = gifUrl ? 'GIF' : (imageUrl ? (text ? text.slice(0, 60) : '사진') : text.slice(0, 60))
   const updates = { lastMessage: preview, lastAt: now }
   for (const uid of Object.keys(room.members || {})) {
     if (uid === fromId) continue

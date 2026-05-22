@@ -30,11 +30,23 @@ const FONTS = [
   { label: '모노', value: 'mono' },
 ]
 
+// SSR 안전한 URL 쿼리 초기 검사 — mount 즉시 결정해야 ?create=1 이 모달을 열도록 보장한다.
+function initialCreateFlag() {
+  if (typeof window === 'undefined') return false
+  try { return new URLSearchParams(window.location.search).get('create') === '1' } catch { return false }
+}
+function initialViewId() {
+  if (typeof window === 'undefined') return null
+  try { return new URLSearchParams(window.location.search).get('view') } catch { return null }
+}
+
 export default function StoriesPage() {
   const [user,        setUser]        = useState(null)
   const [stories,     setStories]     = useState([])
   const [loading,     setLoading]     = useState(true)
-  const [showCreate,  setShowCreate]  = useState(false)
+  // ?create=1 으로 들어오면 mount 시점에 즉시 모달 오픈 결정 (이전엔 user race 로 안 열리던 문제)
+  const [showCreate,  setShowCreate]  = useState(initialCreateFlag)
+  const [pendingViewId, setPendingViewId] = useState(initialViewId)
   const [viewing,     setViewing]     = useState(null)  // { story, idx }
   const [viewIdx,     setViewIdx]     = useState(0)
   const [progKey,     setProgKey]     = useState(0)
@@ -63,6 +75,10 @@ export default function StoriesPage() {
     const u = localStorage.getItem('user')
     if (u) setUser(JSON.parse(u))
     loadStories()
+    // mount 시 URL 정리 — showCreate / pendingViewId 는 이미 useState 초기값으로 읽었음
+    if (typeof window !== 'undefined' && window.location.search) {
+      try { window.history.replaceState({}, '', '/stories') } catch {}
+    }
   }, [])
 
   const loadStories = async () => {
@@ -73,25 +89,29 @@ export default function StoriesPage() {
     setLoading(false)
   }
 
-  // URL 쿼리 처리 — ?create=1 → 작성 모달 즉시 열기, ?view=<authorId> → 해당 사용자 스토리 뷰어 열기
+  // ?view=<authorId> 로 들어왔으면 stories 가 로드된 후 자동 뷰어 오픈
   useEffect(() => {
-    if (loading) return
-    if (typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('create') === '1' && user && !showCreate) {
-      setShowCreate(true)
-      // 깔끔하게 URL 정리
-      window.history.replaceState({}, '', '/stories')
+    if (loading || !pendingViewId || viewing) return
+    const group = grouped.find(g => g.authorId === pendingViewId)
+    if (group) {
+      openViewer(group, 0)
+      setPendingViewId(null)
+    } else if (stories.length > 0) {
+      // 해당 사용자 스토리 없음 — 그냥 무시
+      setPendingViewId(null)
     }
-    const viewId = params.get('view')
-    if (viewId && !viewing) {
-      const group = grouped.find(g => g.authorId === viewId)
-      if (group) {
-        openViewer(group, 0)
-        window.history.replaceState({}, '', '/stories')
+  }, [loading, stories, pendingViewId])
+
+  // 비로그인 사용자가 ?create=1 로 들어오면 로그인 페이지로
+  useEffect(() => {
+    if (showCreate && !user && typeof window !== 'undefined') {
+      const stored = localStorage.getItem('user')
+      if (!stored) {
+        setShowCreate(false)
+        window.location.href = '/login'
       }
     }
-  }, [loading, stories, user])
+  }, [showCreate, user])
 
   // ── group stories by author ────────────────────────────────
   const grouped = []

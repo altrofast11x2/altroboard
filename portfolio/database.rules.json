@@ -32,6 +32,10 @@
     "diep":            { ".read": true,  ".write": true },
     "galleries":       { ".read": true,  ".write": true },
     "reports":         { ".read": true,  ".write": true },
-    "verifyRequests":  { ".read": true,  ".write": true }
+    "verifyRequests":  { ".read": true,  ".write": true },
+    "cheat_reports":   { ".read": true,  ".write": true },
+    "cheat_reports_index": { ".read": true, ".write": true },
+    "chess_resigns":   { ".read": true,  ".write": true },
+    "messages_seen":   { ".read": true,  ".write": true }
   }
 }

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 // 무거운 컴포넌트는 lazy load — 초기 페이지 렌더 가속
 const StoryStrip      = lazy(() => import('./components/StoryStrip'))
 const SuggestedUsers  = lazy(() => import('./components/SuggestedUsers'))
-const Chatbot         = lazy(() => import('./components/Chatbot'))
+const MessageFab      = lazy(() => import('./components/MessageFab'))
 import VerifiedBadge from './components/VerifiedBadge'
 
 // 인스타그램 스타일 단일 컬럼 피드
@@ -246,14 +246,39 @@ export default function Home() {
             )}
           </div>
 
-          {/* 사이드 (데스크탑 only) */}
-          <aside className="feed-side">
-            <div className="card" style={{padding:'1rem'}}>
+          {/* 사이드 (데스크탑 + 로그인 사용자만) */}
+          {user && (
+            <aside className="feed-side">
+              {/* 본인 미니 프로필 */}
+              <div className="feed-side-me">
+                <Link href={`/profile/${user.id}`} className="fsm-avatar">
+                  {user.avatar
+                    ? <img src={user.avatar} alt={user.name}/>
+                    : <span>{(user.name||'?')[0].toUpperCase()}</span>
+                  }
+                </Link>
+                <div style={{flex:1,minWidth:0}}>
+                  <Link href={`/profile/${user.id}`} className="fsm-name">{user.name}</Link>
+                  <div className="fsm-sub">{user.email}</div>
+                </div>
+                <Link href="/settings" className="fsm-settings">설정</Link>
+              </div>
+
+              {/* 추천 사용자 — 박스 안 아닌 자연스러운 영역 */}
               <Suspense fallback={<div style={{minHeight:120}}/>}>
-                <SuggestedUsers maxItems={5} />
+                <SuggestedUsers initial={5} expandedSize={18} />
               </Suspense>
-            </div>
-          </aside>
+
+              <div className="feed-side-foot">
+                <Link href="/about">소개</Link>
+                <Link href="/board">게시판</Link>
+                <Link href="/galleries">갤러리</Link>
+                <Link href="/games">게임</Link>
+                <Link href="/shop">쇼핑몰</Link>
+              </div>
+              <div className="feed-side-copy">© altroboard · altrofast11x2</div>
+            </aside>
+          )}
         </div>
       </div>
 
@@ -261,7 +286,9 @@ export default function Home() {
         altroboard © altrofast11x2
       </footer>
 
-      <Suspense fallback={null}><Chatbot /></Suspense>
+      {/* 챗봇 제거 — SNS 컨셉에 부적합. ALTRO AI 도입 시 별도 위치로 재추가 예정. */}
+      {/* 로그인 사용자에게만 메시지 플로팅 버튼 (Instagram 스타일) */}
+      {user && <Suspense fallback={null}><MessageFab /></Suspense>}
 
       {/* 로그인 안내 모달 */}
       {loginPrompt && (
@@ -288,8 +315,21 @@ export default function Home() {
       )}
 
       <style>{`
-        .feed-grid{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:1.5rem;}
+        .feed-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:2rem;}
         .feed-main{min-width:0;max-width:520px;margin:0 auto;}
+        .feed-side{position:sticky;top:1rem;height:fit-content;padding:1rem 0;display:flex;flex-direction:column;gap:1rem;}
+        .feed-side-me{display:flex;align-items:center;gap:.75rem;padding:.25rem;}
+        .fsm-avatar{width:46px;height:46px;border-radius:50%;background:var(--accent);color:#fff;font-family:var(--serif);font-size:1.1rem;font-weight:700;display:flex;align-items:center;justify-content:center;overflow:hidden;text-decoration:none;flex-shrink:0;}
+        .fsm-avatar img{width:100%;height:100%;object-fit:cover;}
+        .fsm-name{font-family:var(--mono);font-size:.85rem;font-weight:700;color:var(--ink);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .fsm-name:hover{color:var(--accent);}
+        .fsm-sub{font-family:var(--mono);font-size:.68rem;color:var(--muted);margin-top:.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .fsm-settings{font-family:var(--mono);font-size:.72rem;color:var(--accent);font-weight:700;text-decoration:none;padding:.2rem .4rem;}
+        .fsm-settings:hover{color:var(--accent2);}
+        .feed-side-foot{display:flex;flex-wrap:wrap;gap:.4rem .7rem;padding:.5rem .25rem;font-family:var(--mono);font-size:.68rem;}
+        .feed-side-foot a{color:var(--muted);text-decoration:none;}
+        .feed-side-foot a:hover{color:var(--accent);}
+        .feed-side-copy{font-family:var(--mono);font-size:.62rem;color:var(--muted);padding:.25rem;}
         @media(max-width:900px){.feed-grid{grid-template-columns:1fr;}.feed-side{display:none;}}
 
         .feed-stories{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:.75rem 1rem;}
