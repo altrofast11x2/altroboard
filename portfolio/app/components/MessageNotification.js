@@ -62,8 +62,13 @@ export default function MessageNotification() {
   }
 
   useEffect(() => {
+    // /chat 페이지에선 자체 폴링이 있어서 알림 띄울 필요 X
+    if (pathname?.includes('/chat')) return
+    // 비로그인이면 폴링 안 함
+    if (typeof window !== 'undefined' && !localStorage.getItem('user')) return
     checkMessages()
-    pollRef.current = setInterval(checkMessages, 5000)
+    // 30초 폴링 (이전 5초) — Firebase 트래픽 절감 핵심
+    pollRef.current = setInterval(checkMessages, 30000)
     return () => clearInterval(pollRef.current)
   }, [pathname])
 

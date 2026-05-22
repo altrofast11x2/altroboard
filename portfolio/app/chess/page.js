@@ -87,11 +87,12 @@ export default function ChessLobby() {
   }, [])
 
   useEffect(() => {
+    // chess_ratings 는 실시간 구독 대신 한 번만 get — Firebase 트래픽 절감
     const db = getDb()
-    return onValue(ref(db,'chess_ratings'), snap => {
+    get(ref(db,'chess_ratings')).then(snap => {
       if (!snap.exists()) { setRankings([]); return }
       setRankings(Object.values(snap.val()).sort((a,b)=>(b.elo||1200)-(a.elo||1200)).slice(0,50))
-    })
+    }).catch(() => setRankings([]))
   }, [])
 
   // 내 매치 감시

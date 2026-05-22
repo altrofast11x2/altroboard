@@ -105,8 +105,8 @@ export default function NavBar() {
       setUser(u)
       if (pollRef.current) clearInterval(pollRef.current)
       fetchUnread(u.id)
-      // 60초 폴링 — 12초는 너무 자주
-      pollRef.current = setInterval(() => fetchUnread(u.id), 60000)
+      // 5분 폴링 — Firebase 트래픽 절감 (이전 60초)
+      pollRef.current = setInterval(() => fetchUnread(u.id), 300000)
     } else {
       setUser(null); setUnread(0)
       if (pollRef.current) clearInterval(pollRef.current)

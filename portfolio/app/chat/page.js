@@ -90,23 +90,28 @@ function ChatInner() {
     // mark unread 0 locally
     setRooms(prev => prev.map(r => r.roomId === roomId ? { ...r, unread: 0 } : r))
 
-    // poll every 3s — 메시지 + 상대방 seen
+    // 폴링 — Firebase 트래픽 절감을 위해 15초로 늘림 (이전 3초).
+    //   메시지: 15초마다, rooms: 30초마다 (격번), seen: 30초마다 (격번)
+    let tick = 0
     pollRef.current = setInterval(async () => {
       if (activeRef.current !== roomId) return
+      tick++
       await fetchMsgs()
-      const res = await fetch(`/api/chat?userId=${uidRef.current}`)
-      const data = await res.json()
-      if (Array.isArray(data)) setRooms(data)
-      if (rOtherUid) {
-        try {
-          const sr = await fetch(`/api/chat/seen?userId=${encodeURIComponent(rOtherUid)}&roomId=${encodeURIComponent(roomId)}`)
-          if (sr.ok) {
-            const sd = await sr.json()
-            if (sd?.lastSeenAt) setOtherSeen(Number(sd.lastSeenAt) || 0)
-          }
-        } catch {}
+      if (tick % 2 === 0) {
+        const res = await fetch(`/api/chat?userId=${uidRef.current}`)
+        const data = await res.json()
+        if (Array.isArray(data)) setRooms(data)
+        if (rOtherUid) {
+          try {
+            const sr = await fetch(`/api/chat/seen?userId=${encodeURIComponent(rOtherUid)}&roomId=${encodeURIComponent(roomId)}`)
+            if (sr.ok) {
+              const sd = await sr.json()
+              if (sd?.lastSeenAt) setOtherSeen(Number(sd.lastSeenAt) || 0)
+            }
+          } catch {}
+        }
       }
-    }, 3000)
+    }, 15000)
   }
 
   // ── init ──────────────────────────────────────────────────
