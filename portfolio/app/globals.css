@@ -56,7 +56,7 @@ html[data-theme="dark"] .admin-banner { background: #0e3c20; color: #d4ffdf; }
 html[data-theme="dark"] .nav-drawer-head { background: #0a0703 !important; color: #e8dcc4; }
 html[data-theme="dark"] .nav-drawer-head .nav-logo { color: #e8dcc4 !important; }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; overflow-x: hidden; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -64,14 +64,14 @@ body {
   font-weight: 300;
   min-height: 100vh;
   background-image: repeating-linear-gradient(0deg,transparent,transparent 27px,rgba(180,160,100,0.13) 27px,rgba(180,160,100,0.13) 28px);
+  overflow-x: hidden;        /* 가로 스크롤바 차단 — 모든 페이지 공통 */
 }
 
 /* 앱 쉘 — 사이드바 + 콘텐츠 */
-.app-shell{display:flex;min-height:100vh;}
+.app-shell{display:flex;min-height:100vh;max-width:100vw;overflow-x:hidden;}
 .app-content{flex:1;min-width:0;display:flex;flex-direction:column;}
-@media(max-width:640px){
-  .app-content{padding-left:64px;}  /* 모바일에서 사이드바 collapsed 위에 본문 안 밀리고 옆에 */
-}
+/* 모바일: 사이드바가 드로어로 빠져있으므로 padding 불필요 (이전 64px 제거).
+   대신 상단 50px 모바일 헤더만큼 띄움 — NavBar 의 sb-spacer 가 처리. */
 
 a { color: inherit; text-decoration: none; }
 ::selection { background: var(--accent); color: #fff; }
