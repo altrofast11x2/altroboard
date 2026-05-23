@@ -12,7 +12,7 @@ const skills = [
 ]
 
 const projects = [
-  { title: 'Altro', desc: '파일 기반 익명 게시판 → Firebase 연동 풀스택으로 확장', tag: 'Next.js' },
+  { title: 'Altroboard', desc: '파일 기반 익명 게시판 → Firebase 연동 풀스택으로 확장', tag: 'Next.js' },
   { title: 'MVC 좌석예약', desc: 'PHP MVC 패턴으로 구현한 좌석 예약 시스템', tag: 'PHP' },
   { title: '도서관 현황', desc: 'SVG 맵 + 바 차트 + 검색/정렬 테이블', tag: 'PHP' },
 ]
@@ -86,7 +86,7 @@ export default function AboutPage() {
       </div>
 
       <footer style={{borderTop:'1px solid var(--border)',padding:'1.5rem',textAlign:'center',fontFamily:'var(--mono)',fontSize:'0.72rem',color:'var(--muted)'}}>
-        Altro © altrofast11x2
+        Altroboard © altrofast11x2
       </footer>
 
       <style>{`.grid-resp{} @media(max-width:640px){.grid-resp{grid-template-columns:1fr!important;}}`}</style>

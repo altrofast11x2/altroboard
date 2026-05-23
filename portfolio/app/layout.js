@@ -6,8 +6,8 @@ import DevToolsGuard from './components/DevToolsGuard'
 import MessageFab from './components/MessageFab'
 
 export const metadata = {
-  title: 'Altro',
-  description: 'Altro — 개인 SNS · 커뮤니티',
+  title: 'Altroboard',
+  description: 'Altroboard — 개인 SNS · 커뮤니티',
 }
 
 // 페이지 로드 시 즉시 테마 적용 (FOUC 방지) — head 에 인라인 스크립트로 삽입

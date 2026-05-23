@@ -57,7 +57,16 @@ export async function PATCH(request, { params }) {
   const updates = {}
   if (body.name !== undefined)        updates.name = cleanLine(body.name, 24)
   if (body.bio !== undefined)         updates.bio  = cleanText(body.bio, 200)
-  // profileMusic 기능 제거됨 — 더 이상 받지 않음
+  if (body.profileMusic !== undefined) {
+    // { url, title, source? }
+    if (body.profileMusic === null) updates.profileMusic = null
+    else if (typeof body.profileMusic === 'object') {
+      const url = cleanUrl(body.profileMusic.url)
+      const title = cleanLine(body.profileMusic.title, 80)
+      const source = cleanLine(body.profileMusic.source, 20)
+      if (url) updates.profileMusic = { url, title: title || '', source: source || '' }
+    }
+  }
   if (body.language !== undefined) updates.language = cleanEnum(body.language, ['ko', 'en', 'ja'], 'en')
   if (body.theme    !== undefined) updates.theme    = cleanEnum(body.theme, ['light', 'dark', 'auto'], 'light')
 

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 
-const LETTERS = ['C','o','z','y','B','o','a','r','d']
+const LETTERS = ['A','l','t','r','o','b','o','a','r','d']
 
 export default function LoadingScreen() {
   const [visible, setVisible] = useState(false)
@@ -61,7 +61,7 @@ export default function LoadingScreen() {
           {LETTERS.map((l, i) => (
             <span
               key={i}
-              className={`ls-letter ${i < letterIdx ? 'ls-letter-show' : ''} ${i === 4 ? 'ls-letter-break' : ''}`}
+              className={`ls-letter ${i < letterIdx ? 'ls-letter-show' : ''} ${i === 5 ? 'ls-letter-break' : ''}`}
             >
               {l}
             </span>
@@ -84,7 +84,7 @@ export default function LoadingScreen() {
 
       {/* Bottom mono text */}
       <div className={`ls-footer ${phase >= 3 ? 'ls-footer-show' : ''}`}>
-        CozyBoard — Full Stack Developer in Progress
+        Altroboard — Full Stack Developer in Progress
       </div>
 
       <style>{`

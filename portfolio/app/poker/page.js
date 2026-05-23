@@ -138,7 +138,7 @@ export default function PokerLobby() {
       <div className={styles.nickCard}>
         <div className={styles.nickSuit}>♠ ♥ ♦ ♣</div>
         <div className={styles.nickTitle}>POKER CLUB</div>
-        <p className={styles.nickSub}>CozyBoard 포커 테이블</p>
+        <p className={styles.nickSub}>Altroboard 포커 테이블</p>
         <input
           className={styles.nickInput}
           value={pokerNick}

@@ -3,9 +3,127 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-const TABS = ['내 정보', '게시글', '팔로워', '팔로잉']
+const TABS = ['내 정보', '게시글', '팔로워', '팔로잉', '프로필 음악']
 
-// 프로필 음악 기능 제거됨 — ProfileMusicTab 컴포넌트 / /api/upload-audio / users.profileMusic 모두 삭제.
+function ProfileMusicTab({ user, profile, setProfile }) {
+  const [musicUrl,   setMusicUrl]   = useState(profile?.profileMusic?.url   || '')
+  const [musicTitle, setMusicTitle] = useState(profile?.profileMusic?.title || '')
+  const [audioFile,  setAudioFile]  = useState(null)
+  const [audioName,  setAudioName]  = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const [saveMsg,    setSaveMsg]    = useState('')
+  const [err,        setErr]        = useState('')
+  const [playing,    setPlaying]    = useState(false)
+  const audioRef = useRef(null)
+  const fileRef  = useRef(null)
+
+  const togglePlay = () => {
+    const url = audioFile ? URL.createObjectURL(audioFile) : musicUrl
+    if (!url) return
+    if (!audioRef.current) audioRef.current = new Audio(url)
+    if (playing) { audioRef.current.pause(); setPlaying(false) }
+    else { audioRef.current.play().catch(() => {}); setPlaying(true) }
+  }
+
+  const handleSave = async () => {
+    if (!user) return
+    setSaving(true); setErr(''); setSaveMsg('')
+    try {
+      let finalUrl = musicUrl
+      let finalTitle = musicTitle.trim()
+
+      if (audioFile) {
+        const fd = new FormData(); fd.append('file', audioFile)
+        const res = await fetch('/api/upload-audio', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (!res.ok || !data.url) { setErr(data.error || '업로드 실패'); setSaving(false); return }
+        finalUrl = data.url
+        if (!finalTitle) finalTitle = audioName
+      }
+
+      const res = await fetch(`/api/user/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, profileMusic: finalUrl ? { url: finalUrl, title: finalTitle } : null }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setErr(data.error || '저장 실패'); setSaving(false); return }
+      setProfile(prev => ({ ...prev, profileMusic: finalUrl ? { url: finalUrl, title: finalTitle } : null }))
+      setMusicUrl(finalUrl); setMusicTitle(finalTitle)
+      setAudioFile(null); setAudioName('')
+      setSaveMsg('저장됐어요!'); setTimeout(() => setSaveMsg(''), 2500)
+    } catch(e) { setErr(e.message) }
+    setSaving(false)
+  }
+
+  const handleRemove = async () => {
+    if (!user || !confirm('프로필 음악을 삭제할까요?')) return
+    setSaving(true)
+    await fetch(`/api/user/${user.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, profileMusic: null }),
+    })
+    setMusicUrl(''); setMusicTitle(''); setAudioFile(null); setAudioName('')
+    setProfile(prev => ({ ...prev, profileMusic: null }))
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null }
+    setPlaying(false); setSaving(false); setSaveMsg('삭제됐어요!'); setTimeout(() => setSaveMsg(''), 2000)
+  }
+
+  return (
+    <div className="card">
+      <h3 style={{ fontFamily:'var(--serif)', marginBottom:'0.25rem', color:'var(--ink)' }}>프로필 음악</h3>
+      <p style={{ fontFamily:'var(--mono)', fontSize:'0.75rem', color:'var(--muted)', marginBottom:'1.25rem' }}>
+        프로필에 방문하면 자동으로 재생되는 음악을 설정할 수 있어요
+      </p>
+
+      {(musicUrl || audioFile) && (
+        <div style={{ display:'flex', alignItems:'center', gap:'0.75rem', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'0.75rem 1rem', marginBottom:'1rem' }}>
+          <button onClick={togglePlay} style={{ background:'var(--accent)', border:'none', color:'#fff', width:36, height:36, borderRadius:'50%', cursor:'pointer', fontSize:'1rem', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            {playing ? '⏸' : '▶'}
+          </button>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontFamily:'var(--mono)', fontSize:'0.78rem', color:'var(--ink)', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {audioFile ? audioName : (musicTitle || '설정된 음악')}
+            </div>
+            <div style={{ fontFamily:'var(--mono)', fontSize:'0.68rem', color:'var(--muted)' }}>{audioFile ? '새 파일 선택됨' : '현재 프로필 음악'}</div>
+          </div>
+          {!audioFile && musicUrl && (
+            <button onClick={handleRemove} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:'0.8rem' }}>삭제</button>
+          )}
+        </div>
+      )}
+
+      <div style={{ marginBottom:'0.75rem' }}>
+        <button className="btn btn-sm" onClick={() => fileRef.current?.click()}>
+          {audioFile ? `✓ ${audioName.slice(0,30)}` : '음악 파일 선택 (mp3/wav · 10MB)'}
+        </button>
+        {audioFile && (
+          <button style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', marginLeft:'0.5rem', fontSize:'0.8rem' }}
+            onClick={() => { setAudioFile(null); setAudioName(''); setPlaying(false); if (audioRef.current) { audioRef.current.pause(); audioRef.current = null } }}>×</button>
+        )}
+        <input ref={fileRef} type="file" accept="audio/*" style={{ display:'none' }}
+          onChange={e => {
+            const f = e.target.files?.[0]; if (!f) return
+            if (f.size > 10*1024*1024) { alert('10MB 이하만 가능합니다'); return }
+            if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; setPlaying(false) }
+            setAudioFile(f); setAudioName(f.name)
+          }}/>
+      </div>
+
+      <div className="form-group" style={{ marginBottom:'0.75rem' }}>
+        <label style={{ fontSize:'0.72rem' }}>음악 제목 <span style={{ color:'var(--muted)', fontWeight:300 }}>(선택)</span></label>
+        <input value={musicTitle} onChange={e => setMusicTitle(e.target.value)} placeholder="예: Lo-fi - Rainy Day" maxLength={60}/>
+      </div>
+
+      {err     && <p style={{ fontFamily:'var(--mono)', fontSize:'0.75rem', color:'var(--accent)', marginBottom:'0.5rem' }}>{err}</p>}
+      {saveMsg && <p style={{ fontFamily:'var(--mono)', fontSize:'0.75rem', color:'#27ae60', marginBottom:'0.5rem' }}>{saveMsg}</p>}
+
+      <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving || (!audioFile && !musicUrl)}>
+        {saving ? '저장 중...' : '저장'}
+      </button>
+    </div>
+  )
+}
 
 export default function MyPage() {
   const [user,      setUser]      = useState(null)
@@ -412,6 +530,11 @@ export default function MyPage() {
                   </div>
                 ))}
               </div>
+        )}
+
+        {/* ── TAB 4: 프로필 음악 ── */}
+        {tab === 4 && (
+          <ProfileMusicTab user={user} profile={profile} setProfile={setProfile} />
         )}
 
         {/* 인증 신청 모달 */}

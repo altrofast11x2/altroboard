@@ -134,6 +134,7 @@ export default function Home() {
   // 저장 토글
   const toggleSave = async (postId, e) => {
     e?.stopPropagation?.()
+    e?.preventDefault?.()
     if (!user) { setLoginPrompt(true); return }
     const wasSaved = !!savedSet[postId]
     setSavedSet(s => ({ ...s, [postId]: !wasSaved }))   // optimistic
@@ -142,10 +143,16 @@ export default function Home() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, postId }),
       })
-      const d = await r.json()
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setSavedSet(s => ({ ...s, [postId]: wasSaved }))
+        alert(d?.error || `저장 실패 (${r.status}). Firebase rules 확인 필요.`)
+        return
+      }
       if (typeof d?.saved === 'boolean') setSavedSet(s => ({ ...s, [postId]: d.saved }))
-    } catch {
+    } catch (err) {
       setSavedSet(s => ({ ...s, [postId]: wasSaved }))   // rollback
+      alert('저장 요청 중 네트워크 오류')
     }
   }
 
@@ -352,14 +359,14 @@ export default function Home() {
                 <Link href="/games">게임</Link>
                 <Link href="/shop">쇼핑몰</Link>
               </div>
-              <div className="feed-side-copy">© Altro · altrofast11x2</div>
+              <div className="feed-side-copy">© Altroboard · altrofast11x2</div>
             </aside>
           )}
         </div>
       </div>
 
       <footer style={{borderTop:'1px solid var(--border)',padding:'1.5rem',textAlign:'center',fontFamily:'var(--mono)',fontSize:'.72rem',color:'var(--muted)'}}>
-        Altro © altrofast11x2
+        Altroboard © altrofast11x2
       </footer>
 
       {/* MessageFab 은 layout.js 에서 전역 마운트 — 여기선 추가 안 함 */}

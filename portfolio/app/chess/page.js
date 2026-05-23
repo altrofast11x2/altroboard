@@ -365,7 +365,7 @@ export default function ChessLobby() {
           })}
         </div>
         <div className={styles.mainTitle}>Chess</div>
-        <div className={styles.mainSub}>실시간 온라인 체스 · CozyBoard</div>
+        <div className={styles.mainSub}>실시간 온라인 체스 · Altroboard</div>
       </div>
     </div>
   )

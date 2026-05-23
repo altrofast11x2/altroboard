@@ -188,7 +188,7 @@ export default function NavBar() {
         <button className="mob-burger" onClick={()=>setMobileOpen(true)} aria-label={t.menu}>
           <I.Menu width={22} height={22}/>
         </button>
-        <Link href="/" className="mob-logo"><span style={{color:'var(--accent2)'}}>Altro</span></Link>
+        <Link href="/" className="mob-logo">altro<span style={{color:'var(--accent2)'}}>board</span></Link>
         {user && (
           <Link href="/chat" className="mob-msg" aria-label={t.msg}>
             <I.Message width={20} height={20}/>
@@ -215,7 +215,7 @@ export default function NavBar() {
             <I.X width={22} height={22}/>
           </button>
           <Link href="/" className="sb-logo">
-            <span className="sb-logo-full"><span style={{color:'var(--accent2)'}}>Altro</span></span>
+            <span className="sb-logo-full">altro<span style={{color:'var(--accent2)'}}>board</span></span>
             <span className="sb-logo-mini">A</span>
           </Link>
         </div>
