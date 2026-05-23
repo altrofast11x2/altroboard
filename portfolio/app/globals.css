@@ -56,26 +56,28 @@ html[data-theme="dark"] .admin-banner { background: #0e3c20; color: #d4ffdf; }
 html[data-theme="dark"] .nav-drawer-head { background: #0a0703 !important; color: #e8dcc4; }
 html[data-theme="dark"] .nav-drawer-head .nav-logo { color: #e8dcc4 !important; }
 
-html { scroll-behavior: smooth; overflow-x: hidden; }
+html { scroll-behavior: smooth; overflow-x: hidden; width: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
   font-weight: 300;
   min-height: 100vh;
+  width: 100%;
   background-image: repeating-linear-gradient(0deg,transparent,transparent 27px,rgba(180,160,100,0.13) 27px,rgba(180,160,100,0.13) 28px);
-  overflow-x: hidden;        /* 가로 스크롤바 차단 — 모든 페이지 공통 */
+  overflow-x: hidden;
 }
 
-/* 앱 쉘 — 사이드바 + 콘텐츠 */
-.app-shell{display:flex;min-height:100vh;max-width:100vw;overflow-x:hidden;}
-.app-content{flex:1;min-width:0;display:flex;flex-direction:column;}
-/* 모바일: 사이드바가 드로어로 빠져있으므로 padding 불필요 (이전 64px 제거).
-   대신 상단 50px 모바일 헤더만큼 띄움 — NavBar 의 sb-spacer 가 처리. */
+/* 앱 쉘 — 사이드바 + 콘텐츠. 절대 가로 스크롤 생기지 않게 다중 안전망. */
+.app-shell{display:flex;min-height:100vh;width:100%;max-width:100%;overflow-x:hidden;}
+.app-content{flex:1;min-width:0;max-width:100%;overflow-x:hidden;display:flex;flex-direction:column;}
 
 a { color: inherit; text-decoration: none; }
 ::selection { background: var(--accent); color: #fff; }
-::-webkit-scrollbar { width: 4px; }
+
+/* 스크롤바 — 세로만 보이게, 가로는 완전 숨김 */
+::-webkit-scrollbar { width: 4px; height: 0; }
+::-webkit-scrollbar:horizontal { height: 0 !important; display: none; }
 ::-webkit-scrollbar-thumb { background: var(--border-dark); }
 
 /* ── NAVBAR ── */
