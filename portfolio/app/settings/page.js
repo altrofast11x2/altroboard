@@ -43,6 +43,8 @@ export default function SettingsPage() {
   const saveLanguage = async (newLang) => {
     setLanguage(newLang)
     localStorage.setItem('cozyboard_lang', newLang)
+    // useI18n 구독자에게 즉시 알림 (NavBar 등이 바로 갱신)
+    try { window.dispatchEvent(new CustomEvent('altro:langchange', { detail: newLang })) } catch {}
     if (user) {
       try {
         await fetch(`/api/user/${user.id}`, {

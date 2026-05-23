@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
+import { useI18n } from '@/lib/i18n'
 
 // 무거운 컴포넌트는 lazy load — 초기 페이지 렌더 가속
 const StoryStrip      = lazy(() => import('./components/StoryStrip'))
@@ -20,6 +21,7 @@ import VerifiedBadge from './components/VerifiedBadge'
 
 export default function Home() {
   const router = useRouter()
+  const { t } = useI18n()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [likedState, setLikedState] = useState({}) // postId -> { count, liked }
@@ -202,18 +204,18 @@ export default function Home() {
 
             {/* 피드 헤더 */}
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',margin:'1.5rem 0 1rem'}}>
-              <h2 style={{fontFamily:'var(--serif)',fontSize:'1.05rem',color:'var(--ink)'}}>피드</h2>
+              <h2 style={{fontFamily:'var(--serif)',fontSize:'1.05rem',color:'var(--ink)'}}>{t('common.feed')}</h2>
               <Link href="/board" style={{color:'var(--accent)',fontFamily:'var(--mono)',fontSize:'.75rem',textDecoration:'none'}}>
-                전체 게시판 →
+                {t('common.feedAll')} →
               </Link>
             </div>
 
             {/* 게시글 카드 (단일 컬럼, 큰 사진) */}
             {loading ? (
-              <div className="card" style={{textAlign:'center',padding:'3rem',color:'var(--muted)',fontFamily:'var(--mono)'}}>불러오는 중...</div>
+              <div className="card" style={{textAlign:'center',padding:'3rem',color:'var(--muted)',fontFamily:'var(--mono)'}}>{t('common.loading')}</div>
             ) : posts.length === 0 ? (
               <div className="card" style={{textAlign:'center',padding:'3rem',color:'var(--muted)',fontFamily:'var(--mono)',fontSize:'.85rem'}}>
-                아직 게시글이 없습니다. <Link href="/board/write" style={{color:'var(--accent)'}}>첫 글을 작성해보세요</Link>
+                {t('common.noPosts')}. <Link href="/board/write" style={{color:'var(--accent)'}}>{t('common.firstPost')}</Link>
               </div>
             ) : (
               <div className="feed-posts">
@@ -250,7 +252,7 @@ export default function Home() {
                             className={`fp-follow ${followingSet[p.authorId] ? 'on' : ''}`}
                             onClick={(e) => toggleFollow(p.authorId, e)}
                           >
-                            {followingSet[p.authorId] ? '팔로잉' : '팔로우'}
+                            {followingSet[p.authorId] ? t('common.following') : t('common.follow')}
                           </button>
                         )}
                       </header>
@@ -309,9 +311,9 @@ export default function Home() {
                       </div>
 
                       {/* 좋아요 카운트 + 댓글 링크 (액션바 아래) */}
-                      <div className="fp-likes">좋아요 {count.toLocaleString()}개</div>
+                      <div className="fp-likes">{count.toLocaleString()} {t('common.likes')}</div>
                       <Link href={`/board/${p.id}`} className="fp-view-more">
-                        댓글 보기 · 조회 {p.views || 0}
+                        {t('common.viewComments')} · {t('common.views')} {p.views || 0}
                       </Link>
                     </article>
                   )
@@ -350,14 +352,14 @@ export default function Home() {
                 <Link href="/games">게임</Link>
                 <Link href="/shop">쇼핑몰</Link>
               </div>
-              <div className="feed-side-copy">© altroboard · altrofast11x2</div>
+              <div className="feed-side-copy">© Altro · altrofast11x2</div>
             </aside>
           )}
         </div>
       </div>
 
       <footer style={{borderTop:'1px solid var(--border)',padding:'1.5rem',textAlign:'center',fontFamily:'var(--mono)',fontSize:'.72rem',color:'var(--muted)'}}>
-        altroboard © altrofast11x2
+        Altro © altrofast11x2
       </footer>
 
       {/* MessageFab 은 layout.js 에서 전역 마운트 — 여기선 추가 안 함 */}
@@ -376,11 +378,11 @@ export default function Home() {
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
               </svg>
             </div>
-            <h3 className="lp-title">게시글이 마음에 드시나요?</h3>
-            <p className="lp-sub">로그인하면 좋아요, 댓글, 메시지 기능을 모두 사용할 수 있어요.</p>
+            <h3 className="lp-title">{t('login.heart')}</h3>
+            <p className="lp-sub">{t('login.body')}</p>
             <div className="lp-btns">
-              <button className="lp-btn lp-primary" onClick={()=>router.push('/login')}>로그인</button>
-              <button className="lp-btn" onClick={()=>setLoginPrompt(false)}>닫기</button>
+              <button className="lp-btn lp-primary" onClick={()=>router.push('/login')}>{t('login.do')}</button>
+              <button className="lp-btn" onClick={()=>setLoginPrompt(false)}>{t('common.close')}</button>
             </div>
           </div>
         </div>

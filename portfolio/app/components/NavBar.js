@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useI18n } from '@/lib/i18n'
 
 // ── 인라인 SVG 아이콘 ─────────────────────────────────────────
 const I = {
@@ -42,11 +43,7 @@ const OTHER_APPS = [
   { label: '쇼핑몰',   href: '/shop',  icon: <I.Shop  width={20} height={20}/> },
 ]
 
-const L = {
-  ko: { home:'홈', about:'소개', board:'게시판', galleries:'갤러리', study:'학습', data:'외부데이터', shorts:'쇼츠', games:'게임', msg:'메시지', mypage:'마이페이지', settings:'설정', adminPanel:'관리자', logout:'로그아웃', login:'로그인', admin:'관리자 모드 — 게시글 삭제 · 사용자 정지 · 신고 처리 가능', menu:'메뉴' },
-  en: { home:'Home', about:'About', board:'Board', galleries:'Galleries', study:'Study', data:'Data', shorts:'Shorts', games:'Games', msg:'Messages', mypage:'My Page', settings:'Settings', adminPanel:'Admin', logout:'Logout', login:'Login', admin:'Admin Mode — Manage posts, suspend users, handle reports', menu:'Menu' },
-  ja: { home:'ホーム', about:'紹介', board:'掲示板', galleries:'ギャラリー', study:'学習', data:'外部データ', shorts:'ショート', games:'ゲーム', msg:'メッセージ', mypage:'マイページ', settings:'設定', adminPanel:'管理者', logout:'ログアウト', login:'ログイン', admin:'管理者モード — 投稿削除・ユーザー停止・通報処理可能', menu:'メニュー' },
-}
+// 다국어 — lib/i18n.js 의 useI18n() hook 사용. 텍스트는 t('nav.home') 형태로.
 
 const GAME_ITEMS = [
   { label: 'agar.io',        href: '/agar'      },
@@ -59,8 +56,17 @@ const GAME_ITEMS = [
 export default function NavBar() {
   const [user,     setUser]     = useState(null)
   const [unread,   setUnread]   = useState(0)
-  // 기본 언어 영어 — 사용자가 설정에서 한국어/일본어로 변경 가능
-  const [t,        setT]        = useState(L.en)
+  // 다국어 (시스템 언어 기본, 설정에서 변경 가능)
+  const { t: tr } = useI18n()
+  // 컴포넌트가 NAV 배열에서 t.home 식으로 접근하므로 객체 형태로 매핑
+  const t = {
+    home: tr('nav.home'), about: tr('nav.about'), board: tr('nav.board'),
+    galleries: tr('nav.galleries'), study: tr('nav.study'), data: tr('nav.data'),
+    shorts: tr('nav.shorts'), games: tr('nav.games'), msg: tr('nav.msg'),
+    mypage: tr('nav.mypage'), settings: tr('nav.settings'), adminPanel: tr('nav.adminPanel'),
+    logout: tr('nav.logout'), login: tr('nav.login'), menu: tr('nav.menu'),
+    admin: tr('nav.adminMode'), otherApps: tr('nav.otherApps'),
+  }
   // 'collapsed' (좁음) | 'expanded' (라벨까지) — 클릭 토글
   const [mode,     setMode]     = useState('collapsed')
   // 호버 상태 — collapsed 일 때 호버하면 일시적으로 펼침
@@ -96,9 +102,7 @@ export default function NavBar() {
   }
 
   useEffect(() => {
-    // 기본 언어 영어 — 저장된 값이 없으면 'en'
-    const lang = localStorage.getItem('cozyboard_lang') || 'en'
-    setT(L[lang] || L.en)
+    // 언어는 useI18n 이 알아서 처리. 여기선 NavBar 모드/사용자만 초기화.
     const saved = localStorage.getItem('altroboard_nav_mode')
     if (saved === 'expanded' || saved === 'collapsed') setMode(saved)
     const raw = localStorage.getItem('user')
@@ -117,6 +121,20 @@ export default function NavBar() {
   }, [pathname])
 
   useEffect(() => { setHover(false); setMobileOpen(false); setAppsOpen(false); setMoreOpen(false) }, [pathname])
+
+  // expanded 상태일 때 사이드바 바깥 클릭 → collapsed (Instagram 햄버거 동작과 동일)
+  useEffect(() => {
+    if (mode !== 'expanded') return
+    const onDocClick = (e) => {
+      const t = e.target
+      if (t && t.closest && (t.closest('.sidebar') || t.closest('.mob-burger'))) return
+      setMode('collapsed')
+      try { localStorage.setItem('altroboard_nav_mode', 'collapsed') } catch {}
+    }
+    // 이벤트 마운트는 다음 tick — 같은 클릭으로 즉시 닫히는 거 방지
+    const id = setTimeout(() => document.addEventListener('click', onDocClick), 0)
+    return () => { clearTimeout(id); document.removeEventListener('click', onDocClick) }
+  }, [mode])
 
   // 다크/라이트 모드 토글 (auto → light → dark → light ...)
   const toggleTheme = () => {
@@ -170,7 +188,7 @@ export default function NavBar() {
         <button className="mob-burger" onClick={()=>setMobileOpen(true)} aria-label={t.menu}>
           <I.Menu width={22} height={22}/>
         </button>
-        <Link href="/" className="mob-logo">altro<span style={{color:'var(--accent2)'}}>board</span></Link>
+        <Link href="/" className="mob-logo"><span style={{color:'var(--accent2)'}}>Altro</span></Link>
         {user && (
           <Link href="/chat" className="mob-msg" aria-label={t.msg}>
             <I.Message width={20} height={20}/>
@@ -197,7 +215,7 @@ export default function NavBar() {
             <I.X width={22} height={22}/>
           </button>
           <Link href="/" className="sb-logo">
-            <span className="sb-logo-full">altro<span style={{color:'var(--accent2)'}}>board</span></span>
+            <span className="sb-logo-full"><span style={{color:'var(--accent2)'}}>Altro</span></span>
             <span className="sb-logo-mini">A</span>
           </Link>
         </div>
@@ -231,7 +249,7 @@ export default function NavBar() {
         <div className="sb-more">
           <button className="sb-row sb-btn" onClick={()=>setMoreOpen(o=>!o)} aria-expanded={moreOpen}>
             <span className="sb-icon"><I.More width={22} height={22}/></span>
-            <span className="sb-label">더 보기</span>
+            <span className="sb-label">{tr('nav.more')}</span>
             <span className="sb-caret" style={{transform: moreOpen ? 'rotate(90deg)' : 'none'}}>
               <I.Chevron width={14} height={14}/>
             </span>
@@ -240,46 +258,46 @@ export default function NavBar() {
             <div className="sb-sublist">
               <Link href="/board?q=" className="sb-row sb-sub">
                 <span className="sb-icon"><I.Search width={20} height={20}/></span>
-                <span className="sb-label">검색</span>
+                <span className="sb-label">{tr('nav.search')}</span>
               </Link>
               {user && (
                 <Link href="/settings" className={`sb-row sb-sub ${pathname==='/settings'?'active':''}`}>
                   <span className="sb-icon"><I.Settings width={20} height={20}/></span>
-                  <span className="sb-label">설정</span>
+                  <span className="sb-label">{tr('nav.settings')}</span>
                 </Link>
               )}
               {user && (
                 <Link href="/mypage" className={`sb-row sb-sub ${pathname==='/mypage'?'active':''}`}>
                   <span className="sb-icon"><I.Activity width={20} height={20}/></span>
-                  <span className="sb-label">내 활동</span>
+                  <span className="sb-label">{tr('nav.activity')}</span>
                 </Link>
               )}
               {user && (
                 <Link href="/saved" className={`sb-row sb-sub ${pathname==='/saved'?'active':''}`}>
                   <span className="sb-icon"><I.Bookmark width={20} height={20}/></span>
-                  <span className="sb-label">저장됨</span>
+                  <span className="sb-label">{tr('nav.saved')}</span>
                 </Link>
               )}
               <button className="sb-row sb-sub sb-btn" onClick={toggleTheme}>
                 <span className="sb-icon"><I.Moon width={20} height={20}/></span>
-                <span className="sb-label">모드 전환</span>
+                <span className="sb-label">{tr('nav.themeToggle')}</span>
               </button>
               {user && (
                 <Link href="/admin/reports" className="sb-row sb-sub">
                   <span className="sb-icon"><I.Flag width={20} height={20}/></span>
-                  <span className="sb-label">문제 신고</span>
+                  <span className="sb-label">{tr('nav.report')}</span>
                 </Link>
               )}
               {user && (
                 <Link href="/login" className="sb-row sb-sub">
                   <span className="sb-icon"><I.Swap width={20} height={20}/></span>
-                  <span className="sb-label">계정 전환</span>
+                  <span className="sb-label">{tr('nav.switchAccount')}</span>
                 </Link>
               )}
               {user && (
                 <button className="sb-row sb-sub sb-btn" onClick={logout}>
                   <span className="sb-icon"><I.Logout width={20} height={20}/></span>
-                  <span className="sb-label">로그아웃</span>
+                  <span className="sb-label">{tr('nav.logout')}</span>
                 </button>
               )}
             </div>
@@ -290,7 +308,7 @@ export default function NavBar() {
         <div className="sb-other-apps">
           <button className="sb-row sb-btn" onClick={()=>setAppsOpen(o=>!o)} aria-expanded={appsOpen}>
             <span className="sb-icon"><I.Apps width={22} height={22}/></span>
-            <span className="sb-label">altroboard 다른 앱</span>
+            <span className="sb-label">{t.otherApps || 'Altro 다른 앱'}</span>
             <span className="sb-caret" style={{transform: appsOpen ? 'rotate(90deg)' : 'none'}}>
               <I.Chevron width={14} height={14}/>
             </span>

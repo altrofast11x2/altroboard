@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useI18n } from '@/lib/i18n'
 
 // 메인 페이지에서 사용하는 스토리 스트립.
 // - 로그인 안 한 사용자에게는 아예 노출 안 됨 (메인페이지에서 user 가드, 여기서도 한 번 더)
@@ -12,6 +13,7 @@ export default function StoryStrip() {
   const [stories, setStories] = useState([])
   const [user,    setUser]    = useState(null)
   const router = useRouter()
+  const { t } = useI18n()
 
   useEffect(() => {
     const u = localStorage.getItem('user')
@@ -44,7 +46,7 @@ export default function StoryStrip() {
               <line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
           </div>
-          <span className="strip-name">스토리 작성</span>
+          <span className="strip-name">{t('story.create')}</span>
         </Link>
         {groups.slice(0, 10).map(g => (
           <Link href={`/stories?view=${encodeURIComponent(g.authorId)}`} key={g.authorId} className="strip-item">
@@ -61,7 +63,7 @@ export default function StoryStrip() {
         ))}
         {groups.length === 0 && (
           <span style={{ fontFamily: 'var(--mono)', fontSize: '0.72rem', color: 'var(--muted)', padding: '0 0.5rem', alignSelf: 'center' }}>
-            아직 스토리가 없어요
+            {t('story.empty')}
           </span>
         )}
       </div>

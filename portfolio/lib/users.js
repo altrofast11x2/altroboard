@@ -136,7 +136,6 @@ export async function getUserById(uid) {
     language: u.language || 'ko',
     theme: u.theme || 'light',
     verified: !!u.verified,            // 인증 배지 (별)
-    profileMusic: u.profileMusic || null,
   }
 }
 

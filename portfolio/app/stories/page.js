@@ -5,14 +5,7 @@ import { compressImageToTarget } from '@/lib/imageCompress'
 
 const resizeToBase64 = (file) => compressImageToTarget(file, 500)
 
-async function fetchScTrack(url) {
-  try {
-    const res = await fetch(`https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(url)}`)
-    if (!res.ok) return null
-    const d = await res.json()
-    return { title: d.title || '', author: d.author_name || '', thumbnail: d.thumbnail_url || '', html: d.html || '', url }
-  } catch { return null }
-}
+// 음악 첨부 기능 제거됨 (SoundCloud 검색 + music 필드).
 
 const BG_COLORS = [
   { label: '잉크',    value: '#1a1208' },
@@ -62,12 +55,6 @@ export default function StoriesPage() {
   // 사진 첨부
   const [storyImage, setStoryImage] = useState(null)
   const [storyImagePreview, setStoryImagePreview] = useState(null)
-  // 음악 첨부
-  const [scUrl,    setScUrl]    = useState('')
-  const [scTrack,  setScTrack]  = useState(null)
-  const [scLoading,setScLoading]= useState(false)
-  const [scErr,    setScErr]    = useState('')
-
   const timerRef    = useRef(null)
   const imgFileRef  = useRef(null)
 
@@ -184,14 +171,6 @@ export default function StoriesPage() {
   }
 
   // ── post story ────────────────────────────────────────────
-  const handleScSearch = async () => {
-    if (!scUrl.includes('soundcloud.com')) { setScErr('SoundCloud URL을 입력해주세요'); return }
-    setScLoading(true); setScErr(''); setScTrack(null)
-    const t = await fetchScTrack(scUrl.trim())
-    if (!t) { setScErr('트랙을 찾을 수 없습니다'); setScLoading(false); return }
-    setScTrack(t); setScLoading(false)
-  }
-
   const postStory = async () => {
     if (!user) return
     if (!content.trim() && !storyImage) { alert('내용 또는 사진을 입력해주세요'); return }
@@ -202,14 +181,13 @@ export default function StoriesPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         authorId: user.id, authorName: user.name, authorAvatar: user.avatar || null,
-        content, caption, bgColor, font, imageUrl, music: scTrack || null,
+        content, caption, bgColor, font, imageUrl,
       }),
     })
     const data = await res.json()
     if (data.error) { alert(data.error); setPosting(false); return }
     setContent(''); setCaption(''); setBgColor(BG_COLORS[0].value); setFont('sans')
     setStoryImage(null); setStoryImagePreview(null)
-    setScUrl(''); setScTrack(null); setScErr('')
     setShowCreate(false); setPosting(false)
     loadStories()
   }
@@ -414,15 +392,6 @@ export default function StoriesPage() {
                   {currentStory.content}
                 </p>
               ) : null}
-              {currentStory.music && (
-                <div style={{ marginTop: '0.75rem', background: 'rgba(0,0,0,0.4)', borderRadius: 6, padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', backdropFilter: 'blur(4px)', maxWidth: '100%' }}>
-                  <span style={{ fontSize: '0.9rem' }}>🎵</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: '0.7rem', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentStory.music.title}</div>
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: '0.62rem', color: 'rgba(255,255,255,0.55)' }}>{currentStory.music.author}</div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* tap zones */}
@@ -553,35 +522,6 @@ export default function StoriesPage() {
               )}
 
               {/* 음악 첨부 — 편집 모드에서는 숨김 */}
-              {!editing && (
-              <div className="create-row" style={{ alignItems: 'flex-start' }}>
-                <span className="create-label">음악</span>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <input placeholder="SoundCloud URL" value={scUrl}
-                      onChange={e => { setScUrl(e.target.value); setScErr('') }}
-                      onKeyDown={e => e.key === 'Enter' && handleScSearch()}
-                      style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 2, padding: '0.35rem 0.6rem', fontSize: '0.78rem', fontFamily: 'var(--font)', color: 'var(--text)', outline: 'none' }} />
-                    <button className="btn btn-sm" onClick={handleScSearch} disabled={scLoading || !scUrl.trim()}>
-                      {scLoading ? '...' : '검색'}
-                    </button>
-                  </div>
-                  {scErr && <p style={{ fontFamily: 'var(--mono)', fontSize: '0.68rem', color: 'var(--accent)' }}>⚠ {scErr}</p>}
-                  {scTrack && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '0.4rem 0.6rem' }}>
-                      {scTrack.thumbnail && <img src={scTrack.thumbnail} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }} />}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'var(--serif)', fontSize: '0.75rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scTrack.title}</div>
-                        <div style={{ fontFamily: 'var(--mono)', fontSize: '0.65rem', color: 'var(--muted)' }}>{scTrack.author}</div>
-                      </div>
-                      <button onClick={() => { setScTrack(null); setScUrl('') }}
-                        style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.85rem' }}>✕</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-              )}
-
               {editing ? (
                 <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:'0.5rem' }}
                   onClick={saveEdit} disabled={posting}>
