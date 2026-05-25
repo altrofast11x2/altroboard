@@ -66,6 +66,11 @@ export default function AdminUsersPage() {
     if (!confirm(`'${u.name}' 계정의 삭제 예약을 취소합니다.`)) return
     act(u.id, 'cancelDelete')
   }
+  const onToggleMusic = (u) => {
+    const next = !u.musicAllowed
+    if (!confirm(`'${u.name}' 의 음악 업로드 권한을 ${next ? '허용' : '회수'}합니다.`)) return
+    act(u.id, 'setMusicAllowed', { allowed: next })
+  }
 
   const filtered = users.filter(u => {
     if (filter === 'suspended' && !u.suspended) return false
@@ -164,6 +169,15 @@ export default function AdminUsersPage() {
                               <button className="btn btn-sm" onClick={()=>onSetRole(u)}>등급</button>
                               <button className="btn btn-danger btn-sm" style={{borderColor:'#7f0000'}} onClick={()=>onPurgeNow(u)}>즉시삭제</button>
                             </>
+                          )}
+                          {!isSelf && u.role !== 'owner' && (
+                            <button
+                              className={`btn btn-sm ${u.musicAllowed ? 'btn-primary' : ''}`}
+                              title={u.musicAllowed ? '음악 업로드 허용됨 — 회수' : '음악 업로드 권한 부여'}
+                              onClick={()=>onToggleMusic(u)}
+                            >
+                              {u.musicAllowed ? '🎵 허용' : '🎵 차단'}
+                            </button>
                           )}
                         </div>
                       </td>

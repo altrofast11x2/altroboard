@@ -136,6 +136,7 @@ export async function getUserById(uid) {
     language: u.language || 'ko',
     theme: u.theme || 'light',
     verified: !!u.verified,            // 인증 배지 (별)
+    musicAllowed: !!u.musicAllowed,    // 음악 업로드 권한 (관리자가 부여)
     profileMusic: u.profileMusic || null,
   }
 }
@@ -405,5 +406,7 @@ export async function listAllUsers() {
     suspendReason: u.suspendReason || '',
     deletionScheduledAt: u.deletionScheduledAt || null,
     createdAt: u.createdAt || '',
+    verified: !!u.verified,
+    musicAllowed: !!u.musicAllowed,
   })).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 }

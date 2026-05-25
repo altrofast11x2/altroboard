@@ -63,7 +63,8 @@ export default function StoriesPage() {
   // 사진 첨부
   const [storyImage, setStoryImage] = useState(null)
   const [storyImagePreview, setStoryImagePreview] = useState(null)
-  // 음악 첨부 (SoundCloud)
+  // 음악 첨부 (SoundCloud) — 음악 업로드 권한 (관리자 승인) 확인
+  const [musicAllowed, setMusicAllowed] = useState(false)
   const [scUrl,    setScUrl]    = useState('')
   const [scTrack,  setScTrack]  = useState(null)
   const [scLoading,setScLoading]= useState(false)
@@ -74,7 +75,17 @@ export default function StoriesPage() {
 
   useEffect(() => {
     const u = localStorage.getItem('user')
-    if (u) setUser(JSON.parse(u))
+    if (u) {
+      const parsed = JSON.parse(u)
+      setUser(parsed)
+      // 음악 업로드 권한 — owner/admin 은 즉시 허용, 일반 유저는 서버에서 확인
+      if (['owner','admin'].includes(parsed.role)) setMusicAllowed(true)
+      else {
+        fetch(`/api/user/${parsed.id}`).then(r => r.json()).then(d => {
+          if (d?.musicAllowed) setMusicAllowed(true)
+        }).catch(() => {})
+      }
+    }
     loadStories()
     // mount 시 URL 정리 — showCreate / pendingViewId 는 이미 useState 초기값으로 읽었음
     if (typeof window !== 'undefined' && window.location.search) {
@@ -556,8 +567,8 @@ export default function StoriesPage() {
               </div>
               )}
 
-              {/* 음악 첨부 (SoundCloud) — 편집 모드에서는 숨김 */}
-              {!editing && (
+              {/* 음악 첨부 (SoundCloud) — 편집 모드에서는 숨김. 권한 허가된 사용자만. */}
+              {!editing && musicAllowed && (
               <div className="create-row" style={{ alignItems: 'flex-start' }}>
                 <span className="create-label">음악</span>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -584,6 +595,12 @@ export default function StoriesPage() {
                   )}
                 </div>
               </div>
+              )}
+              {!editing && !musicAllowed && (
+                <div style={{ background:'var(--surface2)', border:'1px dashed var(--border)', borderRadius:6, padding:'.6rem .8rem', fontFamily:'var(--mono)', fontSize:'.72rem', color:'var(--muted)', lineHeight:1.65 }}>
+                  음악 첨부는 관리자가 승인한 사용자만 사용할 수 있어요.
+                  <br/>운영자(@altrofast11x2)에게 메시지로 신청해주세요.
+                </div>
               )}
 
               {editing ? (

@@ -27,7 +27,7 @@ export async function POST(req) {
 
   const actorId = cleanId(body.actorId)
   const targetUid = cleanId(body.uid)
-  const action = cleanEnum(body.action, ['suspend', 'unsuspend', 'setRole', 'purge', 'purgeNow', 'cancelDelete'])
+  const action = cleanEnum(body.action, ['suspend', 'unsuspend', 'setRole', 'purge', 'purgeNow', 'cancelDelete', 'setMusicAllowed'])
   if (!actorId || !targetUid || !action) return Response.json({ error: '필수 정보 누락' }, { status: 400 })
   if (targetUid === actorId) return Response.json({ error: '본인 계정엔 적용할 수 없습니다' }, { status: 400 })
 
@@ -78,6 +78,25 @@ export async function POST(req) {
   if (action === 'cancelDelete') {
     const r = await cancelDeletion(targetUid)
     return Response.json(r)
+  }
+  if (action === 'setMusicAllowed') {
+    // 음악 업로드 권한 토글 (관리자 → 일반 유저)
+    const allowed = !!body.allowed
+    const { initializeApp, getApps } = await import('firebase/app')
+    const { getDatabase, ref, update } = await import('firebase/database')
+    const fbCfg = {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    }
+    const app = getApps().length ? getApps()[0] : initializeApp(fbCfg)
+    const db = getDatabase(app)
+    await update(ref(db, `users/${targetUid}`), { musicAllowed: allowed })
+    return Response.json({ ok: true, musicAllowed: allowed })
   }
   return Response.json({ error: '알 수 없는 액션' }, { status: 400 })
 }

@@ -36,11 +36,12 @@ const I = {
   More: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" {...p}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
 }
 
-// "altroboard 다른 앱" 그룹 — Instagram 의 "Meta의 다른 앱" 패턴
+// "Altro 다른 앱" 그룹 — Instagram 의 "Meta의 다른 앱" 패턴
+// external:true 인 항목은 새 탭으로 열림 (다른 서비스)
 const OTHER_APPS = [
-  { label: '게임',     href: '/games', icon: <I.Games width={20} height={20}/> },
-  { label: '외부데이터', href: '/data',  icon: <I.Data  width={20} height={20}/> },
-  { label: '쇼핑몰',   href: '/shop',  icon: <I.Shop  width={20} height={20}/> },
+  { label: '게임',     href: '/games',                          icon: <I.Games width={20} height={20}/> },
+  { label: '외부데이터', href: '/data',                           icon: <I.Data  width={20} height={20}/> },
+  { label: '쇼핑몰',   href: 'https://altroshop.vercel.app/',   icon: <I.Shop  width={20} height={20}/>, external: true },
 ]
 
 // 다국어 — lib/i18n.js 의 useI18n() hook 사용. 텍스트는 t('nav.home') 형태로.
@@ -316,10 +317,23 @@ export default function NavBar() {
           {appsOpen && (
             <div className="sb-sublist">
               {OTHER_APPS.map(a => (
-                <Link key={a.href} href={a.href} className={`sb-row sb-sub ${pathname===a.href?'active':''}`}>
-                  <span className="sb-icon">{a.icon}</span>
-                  <span className="sb-label">{a.label}</span>
-                </Link>
+                a.external ? (
+                  <a key={a.href} href={a.href} target="_blank" rel="noopener noreferrer" className="sb-row sb-sub">
+                    <span className="sb-icon">{a.icon}</span>
+                    <span className="sb-label">{a.label}</span>
+                    <span className="sb-ext" aria-label="external">
+                      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                      </svg>
+                    </span>
+                  </a>
+                ) : (
+                  <Link key={a.href} href={a.href} className={`sb-row sb-sub ${pathname===a.href?'active':''}`}>
+                    <span className="sb-icon">{a.icon}</span>
+                    <span className="sb-label">{a.label}</span>
+                  </Link>
+                )
               ))}
             </div>
           )}
@@ -427,6 +441,8 @@ export default function NavBar() {
         .sb-sublist{padding-left:0;}
         .sidebar.expanded .sb-sublist .sb-sub{padding-left:2.5rem;}
         .sb-sub{font-size:.85rem;}
+        .sb-ext{margin-left:auto;color:rgba(245,240,232,.5);display:flex;align-items:center;}
+        .sidebar.collapsed .sb-ext{display:none;}
 
         /* 모바일 전용 상단 바 — 기본 숨김, 640px 이하에서 표시 */
         .mob-top{display:none;}

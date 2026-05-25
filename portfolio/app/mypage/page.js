@@ -6,6 +6,8 @@ import Link from 'next/link'
 const TABS = ['내 정보', '게시글', '팔로워', '팔로잉', '프로필 음악']
 
 function ProfileMusicTab({ user, profile, setProfile }) {
+  // 음악 업로드 권한 — owner/admin 이거나 musicAllowed=true 인 사용자만
+  const allowed = ['owner','admin'].includes(user?.role) || !!profile?.musicAllowed
   const [musicUrl,   setMusicUrl]   = useState(profile?.profileMusic?.url   || '')
   const [musicTitle, setMusicTitle] = useState(profile?.profileMusic?.title || '')
   const [audioFile,  setAudioFile]  = useState(null)
@@ -16,6 +18,27 @@ function ProfileMusicTab({ user, profile, setProfile }) {
   const [playing,    setPlaying]    = useState(false)
   const audioRef = useRef(null)
   const fileRef  = useRef(null)
+
+  if (!allowed) {
+    return (
+      <div className="card">
+        <h3 style={{ fontFamily:'var(--serif)', marginBottom:'0.5rem', color:'var(--ink)' }}>프로필 음악</h3>
+        <p style={{ fontFamily:'var(--mono)', fontSize:'0.78rem', color:'var(--muted)', lineHeight:1.7, marginBottom:'1rem' }}>
+          음악 업로드는 관리자가 허가한 사용자만 사용할 수 있어요.<br/>
+          사용을 원하시면 운영자에게 메시지로 문의해주세요.
+        </p>
+        <p style={{ fontSize:'0.78rem', color:'var(--text)', lineHeight:1.7, marginBottom:'1rem' }}>
+          • 신청 방법: <strong>마이페이지 → 운영자(@altrofast11x2) 에게 메시지</strong><br/>
+          • 검토 후 권한이 부여되면 이 탭에서 음악을 등록할 수 있습니다.
+        </p>
+        {profile?.profileMusic?.url && (
+          <p style={{ fontFamily:'var(--mono)', fontSize:'.72rem', color:'var(--muted)' }}>
+            (이전에 등록한 음악이 남아있다면 프로필에서 계속 재생됩니다.)
+          </p>
+        )}
+      </div>
+    )
+  }
 
   const togglePlay = () => {
     const url = audioFile ? URL.createObjectURL(audioFile) : musicUrl

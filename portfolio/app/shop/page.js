@@ -18,17 +18,18 @@ export default function ShopPage() {
             </svg>
           </div>
           <h1 style={{ fontFamily: 'var(--serif)', fontSize: '1.8rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '.5rem' }}>
-            Altroboard 쇼핑몰
+            AltroShop
           </h1>
           <p style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: '.85rem', lineHeight: 1.75, marginBottom: '1.5rem' }}>
-            아직 준비 중인 페이지입니다.<br />
-            가까운 시일 내에 별도 주소로 정식 오픈할 예정입니다.
+            쇼핑몰은 별도 주소로 운영됩니다.<br />
+            아래 버튼을 눌러 이동해주세요.
           </p>
-          <p style={{ color: 'var(--muted)', fontSize: '.82rem', lineHeight: 1.7, marginBottom: '2rem' }}>
-            Altroboard 굿즈, 디지털 상품, 그리고 사용자 분들이 직접 등록하는 마켓플레이스를 준비하고 있습니다.
-            오픈 시 공지사항으로 안내드리겠습니다.
-          </p>
-          <Link href="/" className="btn btn-primary">홈으로 돌아가기</Link>
+          <a href="https://altroshop.vercel.app/" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+            altroshop.vercel.app 열기 ↗
+          </a>
+          <div style={{ marginTop: '1rem' }}>
+            <Link href="/" className="btn">홈으로 돌아가기</Link>
+          </div>
         </div>
 
         <div style={{ marginTop: '2rem', padding: '1rem 1.25rem', background: 'var(--surface2)', borderRadius: 8, fontFamily: 'var(--mono)', fontSize: '.72rem', color: 'var(--muted)', lineHeight: 1.7 }}>
