@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ChatComposer from '../components/ChatComposer'
+import NoteStrip from '../components/NoteStrip'
 
 function ChatInner() {
   const [user,         setUser]         = useState(null)
@@ -195,6 +196,9 @@ function ChatInner() {
           </div>
           <button className="btn btn-primary btn-sm" onClick={()=>setShowCreateGroup(true)}>+ 그룹채팅 만들기</button>
         </div>
+
+        {/* 메모(Note) 스트립 — Instagram 노트 패턴 */}
+        {user && <NoteStrip user={user} />}
 
         <div className="chat-layout">
           {/* ── sidebar ── */}

@@ -155,7 +155,8 @@ export default function MyPage() {
   const [followers, setFollowers] = useState([])
   const [following, setFollowing] = useState([])
   const [stats,     setStats]     = useState({ followerCount: 0, followingCount: 0 })
-  const [tab,       setTab]       = useState(0)
+  // 기본 탭 = 게시글 (Instagram 동일 동작). 0=내 정보, 1=게시글, 2=팔로워, 3=팔로잉, 4=프로필 음악
+  const [tab,       setTab]       = useState(1)
   const [loading,   setLoading]   = useState(true)
   const [saving,    setSaving]    = useState(false)
   const [avatarLoading, setAvatarLoading] = useState(false)
@@ -337,7 +338,7 @@ export default function MyPage() {
       <div className="container" style={{ maxWidth: '780px' }}>
 
         {/* ── PROFILE HEADER ── */}
-        <div className="card card-accent" style={{ marginBottom: '1.5rem' }}>
+        <div className="card card-accent" style={{ marginBottom: '2.5rem', padding: '2rem 1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.5rem', flexWrap: 'wrap' }}>
 
             {/* Avatar */}
@@ -404,7 +405,8 @@ export default function MyPage() {
                     <button className="btn btn-sm" onClick={() => setEditMode(true)}>프로필 편집</button>
                     <Link href="/saved" className="btn btn-sm">보관함 보기</Link>
                     <Link href="/settings" className="btn btn-sm">설정</Link>
-                    {!profile?.verified && (
+                    {/* staff (owner/admin/tester/developer) 는 인증 신청 불필요 — 본인 권한이 더 높음 */}
+                    {!profile?.verified && !['owner','admin','tester','developer'].includes(user.role) && (
                       verifyReq?.status === 'pending' ? (
                         <span className="btn btn-sm" style={{cursor:'default',color:'var(--muted)',borderStyle:'dashed'}}>인증 신청 검토 중</span>
                       ) : verifyReq?.status === 'rejected' ? (
@@ -432,7 +434,7 @@ export default function MyPage() {
         </div>
 
         {/* ── TABS ── */}
-        <div className="tab-row" style={{ marginBottom: '1rem' }}>
+        <div className="tab-row" style={{ marginBottom: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '.5rem' }}>
           {TABS.map((t, i) => (
             <button key={t} className={`tab-btn ${tab === i ? 'active' : ''}`} onClick={() => setTab(i)}>
               {t}
@@ -677,8 +679,8 @@ export default function MyPage() {
         }
 
         /* Instagram 스타일 게시글 그리드 */
-        .mp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
-        .mp-grid-cell{position:relative;aspect-ratio:1/1;cursor:pointer;background:var(--surface2);overflow:hidden;border:1px solid var(--border);}
+        .mp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+        .mp-grid-cell{position:relative;aspect-ratio:1/1;cursor:pointer;background:var(--surface2);overflow:hidden;border:1px solid var(--border);border-radius:4px;}
         .mp-grid-cell img{width:100%;height:100%;object-fit:cover;display:block;}
         .mp-grid-noimg{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.5rem;text-align:center;background:linear-gradient(135deg,var(--surface2),var(--surface));}
         .mp-grid-cat{font-family:var(--mono);font-size:.6rem;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;}
@@ -686,7 +688,7 @@ export default function MyPage() {
         .mp-grid-overlay{position:absolute;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;gap:1rem;color:#fff;font-family:var(--mono);font-size:.85rem;font-weight:700;opacity:0;transition:opacity .15s;}
         .mp-grid-overlay span{display:inline-flex;align-items:center;gap:.3rem;}
         .mp-grid-cell:hover .mp-grid-overlay{opacity:1;}
-        @media(max-width:480px){.mp-grid{gap:2px;}}
+        @media(max-width:480px){.mp-grid{gap:5px;}}
 
         /* 아바타 좀 더 크게 (Instagram 톤) */
         .mp-avatar-wrap{width:120px;height:120px;}
