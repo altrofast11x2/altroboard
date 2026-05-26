@@ -402,6 +402,7 @@ export default function MyPage() {
                   )}
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button className="btn btn-sm" onClick={() => setEditMode(true)}>프로필 편집</button>
+                    <Link href="/saved" className="btn btn-sm">보관함 보기</Link>
                     <Link href="/settings" className="btn btn-sm">설정</Link>
                     {!profile?.verified && (
                       verifyReq?.status === 'pending' ? (
@@ -462,37 +463,47 @@ export default function MyPage() {
           </div>
         )}
 
-        {/* ── TAB 1: 게시글 ── */}
+        {/* ── TAB 1: 게시글 (Instagram 스타일 그리드) ── */}
         {tab === 1 && (
           posts.length === 0
-            ? <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: '0.82rem' }}>
-                아직 작성한 게시글이 없습니다
-                <div style={{ marginTop: '1rem' }}><Link href="/board/write" className="btn btn-primary btn-sm">첫 글 쓰기</Link></div>
+            ? <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem', color: 'var(--muted)' }}>
+                <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:72, height:72, borderRadius:'50%', border:'2px solid var(--text)', marginBottom:'1rem' }}>
+                  <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+                  </svg>
+                </div>
+                <h3 style={{ fontFamily:'var(--serif)', fontSize:'1.4rem', color:'var(--ink)', marginBottom:'.5rem' }}>사진 공유</h3>
+                <p style={{ fontFamily:'var(--mono)', fontSize:'.82rem', marginBottom:'1rem' }}>사진을 공유하면 회원님의 프로필에 표시됩니다.</p>
+                <Link href="/board/write" style={{ color:'#3897f0', fontFamily:'var(--mono)', fontSize:'.85rem', fontWeight:600 }}>첫 사진 공유하기</Link>
               </div>
-            : <div className="board-wrap">
-                <table className="board-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '60px' }}>분류</th>
-                      <th>제목</th>
-                      <th style={{ width: '44px' }}>조회</th>
-                      <th style={{ width: '90px' }}>날짜</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {posts.map(p => (
-                      <tr key={p.id} onClick={() => router.push(`/board/${p.id}`)} style={{ cursor: 'pointer' }}>
-                        <td><span className="badge">{p.category}</span></td>
-                        <td style={{ fontWeight: 400 }}>{p.title}</td>
-                        <td className="meta">{p.views ?? 0}</td>
-                        <td className="meta">{new Date(p.createdAt).toLocaleDateString('ko-KR')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            : <div className="mp-grid">
+                {posts.map(p => {
+                  const thumb = Array.isArray(p.imageUrl) ? p.imageUrl[0] : p.imageUrl
+                  return (
+                    <div key={p.id} className="mp-grid-cell" onClick={() => router.push(`/board/${p.id}`)}>
+                      {thumb ? (
+                        <img src={thumb} alt={p.title} />
+                      ) : (
+                        <div className="mp-grid-noimg">
+                          <span className="mp-grid-cat">{p.category}</span>
+                          <span className="mp-grid-title">{p.title}</span>
+                        </div>
+                      )}
+                      <div className="mp-grid-overlay">
+                        <span>
+                          <svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 21l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.18L12 21z"/></svg>
+                          {p.likeCount || 0}
+                        </span>
+                        <span>
+                          <svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M2 8.5C2 7.12 3.12 6 4.5 6h15A2.5 2.5 0 0122 8.5v8a2.5 2.5 0 01-2.5 2.5H8l-4 4V8.5z"/></svg>
+                          {p.views || 0}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
         )}
-
         {/* ── TAB 2: 팔로워 ── */}
         {tab === 2 && (
           followerProfiles.length === 0
@@ -664,6 +675,23 @@ export default function MyPage() {
           object-fit: cover; flex-shrink: 0;
           border: 1.5px solid var(--border);
         }
+
+        /* Instagram 스타일 게시글 그리드 */
+        .mp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
+        .mp-grid-cell{position:relative;aspect-ratio:1/1;cursor:pointer;background:var(--surface2);overflow:hidden;border:1px solid var(--border);}
+        .mp-grid-cell img{width:100%;height:100%;object-fit:cover;display:block;}
+        .mp-grid-noimg{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.5rem;text-align:center;background:linear-gradient(135deg,var(--surface2),var(--surface));}
+        .mp-grid-cat{font-family:var(--mono);font-size:.6rem;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;}
+        .mp-grid-title{font-family:var(--serif);font-size:.8rem;font-weight:600;color:var(--ink);overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;line-height:1.35;}
+        .mp-grid-overlay{position:absolute;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;gap:1rem;color:#fff;font-family:var(--mono);font-size:.85rem;font-weight:700;opacity:0;transition:opacity .15s;}
+        .mp-grid-overlay span{display:inline-flex;align-items:center;gap:.3rem;}
+        .mp-grid-cell:hover .mp-grid-overlay{opacity:1;}
+        @media(max-width:480px){.mp-grid{gap:2px;}}
+
+        /* 아바타 좀 더 크게 (Instagram 톤) */
+        .mp-avatar-wrap{width:120px;height:120px;}
+        .mp-avatar-img,.mp-avatar-placeholder{width:120px !important;height:120px !important;font-size:2.4rem;}
+        @media(max-width:560px){.mp-avatar-wrap,.mp-avatar-img,.mp-avatar-placeholder{width:88px !important;height:88px !important;}.mp-avatar-placeholder{font-size:1.8rem;}}
       `}</style>
     </main>
   )
