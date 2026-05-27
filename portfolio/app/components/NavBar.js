@@ -34,12 +34,14 @@ const I = {
   Flag: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
   Swap: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
   More: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" {...p}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+  Music: (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>,
 }
 
 // "Altro 다른 앱" 그룹 — Instagram 의 "Meta의 다른 앱" 패턴
 // external:true 인 항목은 새 탭으로 열림 (다른 서비스)
 const OTHER_APPS = [
   { label: '게임',     href: '/games',                          icon: <I.Games width={20} height={20}/> },
+  { label: '학습',     href: '/study',                          icon: <I.Study width={20} height={20}/> },
   { label: '외부데이터', href: '/data',                           icon: <I.Data  width={20} height={20}/> },
   { label: '쇼핑몰',   href: 'https://altroshop.vercel.app/',   icon: <I.Shop  width={20} height={20}/>, external: true },
 ]
@@ -56,6 +58,7 @@ const GAME_ITEMS = [
 
 export default function NavBar() {
   const [user,     setUser]     = useState(null)
+  const [musicAllowed, setMusicAllowed] = useState(false)
   const [unread,   setUnread]   = useState(0)
   // 다국어 (시스템 언어 기본, 설정에서 변경 가능)
   const { t: tr } = useI18n()
@@ -114,6 +117,14 @@ export default function NavBar() {
       fetchUnread(u.id)
       // 5분 폴링 — Firebase 트래픽 절감 (이전 60초)
       pollRef.current = setInterval(() => fetchUnread(u.id), 300000)
+
+      // 음악 업로드 권한 — owner/admin 은 즉시, 일반 유저는 fetch
+      if (['owner','admin'].includes(u.role)) setMusicAllowed(true)
+      else {
+        fetch(`/api/user/${u.id}`).then(r => r.json()).then(d => {
+          if (d?.musicAllowed) setMusicAllowed(true)
+        }).catch(()=>{})
+      }
     } else {
       setUser(null); setUnread(0)
       if (pollRef.current) clearInterval(pollRef.current)
@@ -169,14 +180,14 @@ export default function NavBar() {
     )
   }
 
-  // 메인 NAV — 핵심만. 게임/외부데이터/쇼핑몰은 '다른 앱' 으로 이동.
+  // 메인 NAV — 핵심만. 게임/외부데이터/쇼핑몰/학습은 '다른 앱' 으로 이동.
   // 스토리는 메인 페이지 상단 스트립으로만 접근 (Instagram 패턴).
   const NAV = [
     { href: '/',          label: t.home,      icon: <I.Home width={22} height={22}/> },
     { href: '/board',     label: t.board,     icon: <I.Board width={22} height={22}/> },
     { href: '/galleries', label: t.galleries, icon: <I.Gallery width={22} height={22}/> },
     { href: '/shorts',    label: t.shorts,    icon: <I.Shorts width={22} height={22}/> },
-    { href: '/study',     label: t.study,     icon: <I.Study width={22} height={22}/> },
+    { href: '/music',     label: '음악',       icon: <I.Music width={22} height={22}/> },
   ]
 
   // 실제 표시 모드 — 호버 시 일시 펼침
@@ -235,6 +246,14 @@ export default function NavBar() {
               <span className="sb-icon"><I.Message width={22} height={22}/></span>
               <span className="sb-label">{t.msg}</span>
               {unread > 0 && <span className="sb-badge">{unread>9?'9+':unread}</span>}
+            </Link>
+          )}
+
+          {/* 음악 업로드 — 권한자에게만 노출 (musicAllowed 또는 owner/admin) */}
+          {user && musicAllowed && (
+            <Link href="/music/upload" className={`sb-row ${pathname?.startsWith('/music/upload')?'active':''}`}>
+              <span className="sb-icon"><I.Music width={22} height={22}/></span>
+              <span className="sb-label">음악 업로드</span>
             </Link>
           )}
 

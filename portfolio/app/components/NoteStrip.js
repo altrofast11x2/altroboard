@@ -110,6 +110,9 @@ export default function NoteStrip({ user }) {
                   <button className="ns-pop-x" onClick={() => setOpenNoteId(null)} aria-label="닫기">×</button>
                 </div>
                 {n.text && <div className="ns-pop-text">{n.text}</div>}
+                {n.gifUrl && (
+                  <img src={n.gifUrl} alt="GIF" style={{maxWidth:'100%',borderRadius:6,marginBottom:'.4rem'}}/>
+                )}
                 {n.music && (
                   <div className="ns-pop-music">
                     {n.music.thumbnail && <img src={n.music.thumbnail} alt=""/>}

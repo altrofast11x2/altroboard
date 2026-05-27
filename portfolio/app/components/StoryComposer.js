@@ -1,6 +1,8 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { compressImageToTarget } from '@/lib/imageCompress'
+
+const MusicPicker = lazy(() => import('./MusicPicker'))
 
 // 스토리 작성/편집 모달 — 메인 페이지와 /stories 페이지 양쪽에서 재사용.
 // props:
@@ -28,14 +30,7 @@ const FONTS = [
 ]
 const fontClass = { sans: 'var(--font)', serif: 'var(--serif)', mono: 'var(--mono)' }
 
-async function fetchScTrack(url) {
-  try {
-    const res = await fetch(`https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(url)}`)
-    if (!res.ok) return null
-    const d = await res.json()
-    return { title: d.title || '', author: d.author_name || '', thumbnail: d.thumbnail_url || '', html: d.html || '', url }
-  } catch { return null }
-}
+// SoundCloud 검색은 제거 — 음악은 라이브러리(/music)에서 선택만 지원.
 
 export default function StoryComposer({ user, editing = null, onClose, onPosted }) {
   const isEdit = !!editing
@@ -48,30 +43,11 @@ export default function StoryComposer({ user, editing = null, onClose, onPosted 
   const [posting,  setPosting]  = useState(false)
 
   // 음악 권한
-  const [musicAllowed, setMusicAllowed] = useState(false)
-  const [scUrl,    setScUrl]    = useState('')
-  const [scTrack,  setScTrack]  = useState(null)
-  const [scLoading,setScLoading]= useState(false)
-  const [scErr,    setScErr]    = useState('')
+  // 음악은 라이브러리에서 선택 (모든 사용자 가능 — 이미 승인된 곡만 있음)
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false)
+  const [music, setMusic] = useState(null)   // { id, fileUrl, title, artist, coverUrl }
 
   const imgFileRef = useRef(null)
-
-  // 음악 권한 fetch (편집 모드는 굳이 안 함 — 기존 음악 유지)
-  useEffect(() => {
-    if (!user || isEdit) return
-    if (['owner','admin'].includes(user.role)) { setMusicAllowed(true); return }
-    fetch(`/api/user/${user.id}`).then(r => r.json()).then(d => {
-      if (d?.musicAllowed) setMusicAllowed(true)
-    }).catch(() => {})
-  }, [user, isEdit])
-
-  const handleScSearch = async () => {
-    if (!scUrl.includes('soundcloud.com')) { setScErr('SoundCloud URL을 입력해주세요'); return }
-    setScLoading(true); setScErr(''); setScTrack(null)
-    const t = await fetchScTrack(scUrl.trim())
-    if (!t) { setScErr('트랙을 찾을 수 없습니다'); setScLoading(false); return }
-    setScTrack(t); setScLoading(false)
-  }
 
   const post = async () => {
     if (!user) return
@@ -80,11 +56,14 @@ export default function StoryComposer({ user, editing = null, onClose, onPosted 
     try {
       let imageUrl = null
       if (storyImage) imageUrl = await resizeToBase64(storyImage)
+      const musicPayload = music
+        ? { url: music.fileUrl, title: music.title, author: music.artist || '', thumbnail: music.coverUrl || '' }
+        : null
       const res = await fetch('/api/stories', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           authorId: user.id, authorName: user.name, authorAvatar: user.avatar || null,
-          content, caption, bgColor, font, imageUrl, music: scTrack || null,
+          content, caption, bgColor, font, imageUrl, music: musicPayload,
         }),
       })
       const data = await res.json()
@@ -225,38 +204,38 @@ export default function StoryComposer({ user, editing = null, onClose, onPosted 
             </div>
           )}
 
-          {/* 음악 — 권한 있는 사용자만, 편집모드 제외 */}
-          {!isEdit && musicAllowed && (
+          {/* 음악 — 라이브러리에서 선택 (이미 승인된 곡만 노출). 편집 모드에서는 변경 안 함. */}
+          {!isEdit && (
             <div className="sc-row" style={{ alignItems:'flex-start' }}>
               <span className="sc-label">음악</span>
-              <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'.35rem' }}>
-                <div style={{ display:'flex', gap:'.4rem' }}>
-                  <input placeholder="SoundCloud URL" value={scUrl}
-                    onChange={e => { setScUrl(e.target.value); setScErr('') }}
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleScSearch())}
-                    style={{ flex:1, background:'var(--bg)', border:'1px solid var(--border)', borderRadius:2, padding:'.35rem .6rem', fontSize:'.78rem', fontFamily:'var(--font)', color:'var(--text)', outline:'none' }} />
-                  <button type="button" className="btn btn-sm" onClick={handleScSearch} disabled={scLoading || !scUrl.trim()}>
-                    {scLoading ? '...' : '검색'}
-                  </button>
-                </div>
-                {scErr && <p style={{ fontFamily:'var(--mono)', fontSize:'.68rem', color:'var(--accent)' }}>{scErr}</p>}
-                {scTrack && (
-                  <div style={{ display:'flex', alignItems:'center', gap:'.5rem', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:4, padding:'.4rem .6rem' }}>
-                    {scTrack.thumbnail && <img src={scTrack.thumbnail} alt="" style={{ width:32, height:32, objectFit:'cover', borderRadius:3, flexShrink:0 }} />}
+              <div style={{ flex:1 }}>
+                {music ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:'.5rem', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'.45rem .6rem' }}>
+                    {music.coverUrl && <img src={music.coverUrl} alt="" style={{ width:36, height:36, objectFit:'cover', borderRadius:4, flexShrink:0 }} />}
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontFamily:'var(--serif)', fontSize:'.75rem', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{scTrack.title}</div>
-                      <div style={{ fontFamily:'var(--mono)', fontSize:'.65rem', color:'var(--muted)' }}>{scTrack.author}</div>
+                      <div style={{ fontFamily:'var(--serif)', fontSize:'.8rem', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{music.title}</div>
+                      <div style={{ fontFamily:'var(--mono)', fontSize:'.65rem', color:'var(--muted)' }}>{music.artist || '아티스트 미상'}</div>
                     </div>
-                    <button type="button" onClick={() => { setScTrack(null); setScUrl('') }}
-                      style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:'.85rem' }}>×</button>
+                    <button type="button" onClick={() => setMusic(null)}
+                      style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:'1rem' }}>×</button>
+                  </div>
+                ) : (
+                  <button type="button" className="btn btn-sm" onClick={() => setMusicPickerOpen(o => !o)}>
+                    {musicPickerOpen ? '닫기' : '+ 라이브러리에서 선택'}
+                  </button>
+                )}
+                {musicPickerOpen && !music && (
+                  <div style={{ marginTop:'.5rem', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'.5rem' }}>
+                    <Suspense fallback={<div style={{fontFamily:'var(--mono)',fontSize:'.72rem',color:'var(--muted)',padding:'.5rem'}}>로딩 중...</div>}>
+                      <MusicPicker
+                        selected={music}
+                        onSelect={(m) => { setMusic(m); if (m) setMusicPickerOpen(false) }}
+                        compact
+                      />
+                    </Suspense>
                   </div>
                 )}
               </div>
-            </div>
-          )}
-          {!isEdit && !musicAllowed && (
-            <div style={{ background:'var(--surface2)', border:'1px dashed var(--border)', borderRadius:6, padding:'.55rem .75rem', fontFamily:'var(--mono)', fontSize:'.7rem', color:'var(--muted)', lineHeight:1.6 }}>
-              음악 첨부는 관리자가 승인한 사용자만 사용할 수 있어요. 운영자에게 메시지로 신청해주세요.
             </div>
           )}
 

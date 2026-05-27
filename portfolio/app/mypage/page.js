@@ -2,10 +2,68 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import MusicPicker from '../components/MusicPicker'
 
 const TABS = ['내 정보', '게시글', '팔로워', '팔로잉', '프로필 음악']
 
+// 프로필 음악 — 라이브러리에서 선택 (파일 직접 업로드 안 함).
+// 음악 업로드 자체는 /music/upload (관리자 승인 필요).
 function ProfileMusicTab({ user, profile, setProfile }) {
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+  const current = profile?.profileMusic || null
+
+  const saveSelection = async (picked) => {
+    if (!user) return
+    setSaving(true); setMsg('')
+    try {
+      const next = picked
+        ? { url: picked.fileUrl, title: picked.title, source: picked.artist || picked.id }
+        : null
+      const r = await fetch(`/api/user/${user.id}`, {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userId: user.id, profileMusic: next }),
+      })
+      const d = await r.json()
+      if (!r.ok) { setMsg(d.error || '저장 실패'); return }
+      setProfile(prev => ({ ...prev, profileMusic: next }))
+      setMsg(picked ? '저장됐어요!' : '해제됐어요!')
+      setTimeout(() => setMsg(''), 2000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <h3 style={{ fontFamily:'var(--serif)', marginBottom:'0.25rem', color:'var(--ink)' }}>프로필 음악</h3>
+      <p style={{ fontFamily:'var(--mono)', fontSize:'0.75rem', color:'var(--muted)', marginBottom:'1.25rem', lineHeight:1.65 }}>
+        프로필에 방문하면 자동으로 재생되는 음악을 라이브러리에서 선택할 수 있어요.<br/>
+        직접 업로드는 <Link href="/music/upload" style={{color:'var(--accent)'}}>음악 업로드</Link>(관리자 허가 필요) 에서 진행하세요.
+      </p>
+
+      {current && (
+        <div style={{ display:'flex', alignItems:'center', gap:'.7rem', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'.6rem .8rem', marginBottom:'1rem' }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontFamily:'var(--serif)', fontSize:'.85rem', fontWeight:700, color:'var(--ink)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>현재 프로필 음악: {current.title}</div>
+            <div style={{ fontFamily:'var(--mono)', fontSize:'.7rem', color:'var(--muted)' }}>{current.source || ''}</div>
+          </div>
+        </div>
+      )}
+
+      <MusicPicker
+        selected={current ? { id: current.source, fileUrl: current.url, title: current.title, artist: current.source, coverUrl: null } : null}
+        onSelect={saveSelection}
+      />
+
+      {saving && <p style={{ fontFamily:'var(--mono)', fontSize:'.72rem', color:'var(--muted)', marginTop:'.5rem' }}>저장 중...</p>}
+      {msg && <p style={{ fontFamily:'var(--mono)', fontSize:'.72rem', color:'#27ae60', marginTop:'.5rem' }}>{msg}</p>}
+    </div>
+  )
+}
+
+// (구) 직접 파일 업로드 컴포넌트 — 라이브러리 선택 방식으로 변경됨
+function _OldProfileMusicTab({ user, profile, setProfile }) {
   // 음악 업로드 권한 — owner/admin 이거나 musicAllowed=true 인 사용자만
   const allowed = ['owner','admin'].includes(user?.role) || !!profile?.musicAllowed
   const [musicUrl,   setMusicUrl]   = useState(profile?.profileMusic?.url   || '')

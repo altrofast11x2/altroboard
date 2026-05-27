@@ -223,7 +223,11 @@ function ChatInner() {
                     className={`chat-room-btn ${activeRoom === r.roomId ? 'active' : ''}`}
                     onClick={() => openRoom(r.roomId, r.isGroup ? '' : r.otherUid, displayName)}
                   >
-                    <div className={`c-avatar sm ${r.isGroup?'group':''}`}>{firstChar}</div>
+                    <div className={`c-avatar sm ${r.isGroup?'group':''}`}>
+                      {!r.isGroup && r.otherAvatar
+                        ? <img src={r.otherAvatar} alt={displayName} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
+                        : firstChar}
+                    </div>
                     <div className="chat-room-txt">
                       <div className="chat-room-name">
                         {r.isGroup && <span style={{fontSize:'.65rem',color:'var(--muted)',marginRight:4}}>[그룹·{r.memberCount}]</span>}
@@ -295,7 +299,13 @@ function ChatInner() {
                         <div key={m.id || i}>
                           {showDate && <div className="date-divider">{fmtDate(m.createdAt)}</div>}
                           <div className={`msg-row ${isMine ? 'mine' : 'theirs'}`}>
-                            {!isMine && <div className="c-avatar xs">{(m.fromName || '?')[0].toUpperCase()}</div>}
+                            {!isMine && (
+                              <div className="c-avatar xs">
+                                {m.fromAvatar
+                                  ? <img src={m.fromAvatar} alt={m.fromName} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
+                                  : (m.fromName || '?')[0].toUpperCase()}
+                              </div>
+                            )}
                             <div className="bubble-wrap">
                               {!isMine && isGroupActive && <div className="msg-name">{m.fromName}</div>}
                               <div className={`bubble ${isMine ? 'bubble-mine' : ''} ${mediaUrl ? 'has-media' : ''}`}>

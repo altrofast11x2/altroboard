@@ -22,6 +22,15 @@ async function resolveUserName(uid) {
   } catch {}
   return uid
 }
+// uid 로 아바타 URL 조회 (메시지 표시용)
+async function resolveUserAvatar(uid) {
+  if (!uid || uid === 'admin') return null
+  try {
+    const snap = await get(ref(db, `users/${uid}`))
+    if (snap.exists()) return snap.val().avatar || null
+  } catch {}
+  return null
+}
 
 // GET ?userId=xxx → 대화 목록
 export async function GET(request) {
@@ -73,12 +82,14 @@ export async function GET(request) {
         update(ref(db, `chatRooms/${roomId}/memberNames`), { [otherUid]: otherName }).catch(() => {})
       }
     }
+    const otherAvatar = await resolveUserAvatar(otherUid)
 
     rooms.push({
       roomId,
       isGroup: false,
       otherUid,
       otherName,
+      otherAvatar,
       lastMessage: room.lastMessage || '',
       lastAt: room.lastAt || room.createdAt || '',
       unread: room.unread?.[userId] || 0,
@@ -104,6 +115,7 @@ export async function POST(request) {
     return Response.json({ error: 'toId 또는 roomId 필요' }, { status: 400 })
 
   const resolvedFromName = fromName || await resolveUserName(fromId)
+  const resolvedFromAvatar = await resolveUserAvatar(fromId)
   const now = new Date().toISOString()
   let roomId, roomRef, room
 
@@ -140,6 +152,7 @@ export async function POST(request) {
 
   const msgRef = push(ref(db, `chatMessages/${roomId}`))
   const msg = { fromId, fromName: resolvedFromName, message: text, createdAt: now }
+  if (resolvedFromAvatar) msg.fromAvatar = resolvedFromAvatar
   if (imageUrl) msg.imageUrl = imageUrl
   if (gifUrl)   msg.gifUrl   = gifUrl
   await set(msgRef, msg)

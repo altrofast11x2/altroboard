@@ -38,6 +38,7 @@
     "chess_resigns":   { ".read": true,  ".write": true },
     "messages_seen":   { ".read": true,  ".write": true },
     "saved_posts":     { ".read": true,  ".write": true },
-    "notes":           { ".read": true,  ".write": true }
+    "notes":           { ".read": true,  ".write": true },
+    "music_uploads":   { ".read": true,  ".write": true }
   }
 }

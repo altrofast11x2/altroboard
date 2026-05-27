@@ -84,13 +84,9 @@ export async function POST(req) {
   if (!actor) return Response.json({ error: '권한 없음' }, { status: 403 })
 
   const text = cleanLine(body.text, 60)
-  // 음악 첨부 여부 검증
+  // 음악 첨부 — 라이브러리에서 선택된 곡 (이미 승인된 곡이므로 권한 검증 불필요)
   let music = null
   if (body.music && typeof body.music === 'object') {
-    const allowed = ['owner','admin'].includes(actor.role) || !!actor.musicAllowed
-    if (!allowed) {
-      return Response.json({ error: '음악 첨부는 관리자가 허가한 사용자만 가능합니다.' }, { status: 403 })
-    }
     music = {
       url:    String(body.music.url || '').slice(0, 500),
       title:  String(body.music.title || '').slice(0, 80),
@@ -99,8 +95,10 @@ export async function POST(req) {
     }
     if (!music.url) music = null
   }
+  // GIF
+  const gifUrl = body.gifUrl ? String(body.gifUrl).slice(0, 500) : null
 
-  if (!text && !music) return Response.json({ error: '내용 또는 음악을 입력해주세요' }, { status: 400 })
+  if (!text && !music && !gifUrl) return Response.json({ error: '내용 / 음악 / GIF 중 하나는 필요합니다' }, { status: 400 })
 
   const note = {
     authorId:     userId,
@@ -108,6 +106,7 @@ export async function POST(req) {
     authorAvatar: actor.avatar || null,
     text,
     music,
+    gifUrl,
     createdAt:    new Date().toISOString(),
   }
   await set(ref(db, `notes/${userId}`), note)

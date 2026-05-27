@@ -5,15 +5,7 @@ import { compressImageToTarget } from '@/lib/imageCompress'
 
 const resizeToBase64 = (file) => compressImageToTarget(file, 500)
 
-// SoundCloud oEmbed 트랙 정보 조회
-async function fetchScTrack(url) {
-  try {
-    const res = await fetch(`https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(url)}`)
-    if (!res.ok) return null
-    const d = await res.json()
-    return { title: d.title || '', author: d.author_name || '', thumbnail: d.thumbnail_url || '', html: d.html || '', url }
-  } catch { return null }
-}
+// SoundCloud 검색은 제거됨 — 음악은 라이브러리(/music) 에서 선택만 지원.
 
 const BG_COLORS = [
   { label: '잉크',    value: '#1a1208' },
@@ -63,12 +55,7 @@ export default function StoriesPage() {
   // 사진 첨부
   const [storyImage, setStoryImage] = useState(null)
   const [storyImagePreview, setStoryImagePreview] = useState(null)
-  // 음악 첨부 (SoundCloud) — 음악 업로드 권한 (관리자 승인) 확인
-  const [musicAllowed, setMusicAllowed] = useState(false)
-  const [scUrl,    setScUrl]    = useState('')
-  const [scTrack,  setScTrack]  = useState(null)
-  const [scLoading,setScLoading]= useState(false)
-  const [scErr,    setScErr]    = useState('')
+  // 음악은 작성 모달(StoryComposer) 의 MusicPicker 로 처리 — 여기선 state 없음
 
   const timerRef    = useRef(null)
   const imgFileRef  = useRef(null)
@@ -78,13 +65,6 @@ export default function StoriesPage() {
     if (u) {
       const parsed = JSON.parse(u)
       setUser(parsed)
-      // 음악 업로드 권한 — owner/admin 은 즉시 허용, 일반 유저는 서버에서 확인
-      if (['owner','admin'].includes(parsed.role)) setMusicAllowed(true)
-      else {
-        fetch(`/api/user/${parsed.id}`).then(r => r.json()).then(d => {
-          if (d?.musicAllowed) setMusicAllowed(true)
-        }).catch(() => {})
-      }
     }
     loadStories()
     // mount 시 URL 정리 — showCreate / pendingViewId 는 이미 useState 초기값으로 읽었음
@@ -195,16 +175,9 @@ export default function StoriesPage() {
     loadStories()
   }
 
-  // ── SoundCloud 검색 ────────────────────────────────────────
-  const handleScSearch = async () => {
-    if (!scUrl.includes('soundcloud.com')) { setScErr('SoundCloud URL을 입력해주세요'); return }
-    setScLoading(true); setScErr(''); setScTrack(null)
-    const t = await fetchScTrack(scUrl.trim())
-    if (!t) { setScErr('트랙을 찾을 수 없습니다'); setScLoading(false); return }
-    setScTrack(t); setScLoading(false)
-  }
-
   // ── post story ────────────────────────────────────────────
+  // (음악은 라이브러리에서 선택한 곡으로 처리 — 이 페이지의 인라인 모달은 음악 미지원.
+  //  음악 추가하려면 메인 페이지 / StoryStrip 의 StoryComposer 모달을 사용.)
   const postStory = async () => {
     if (!user) return
     if (!content.trim() && !storyImage) { alert('내용 또는 사진을 입력해주세요'); return }
@@ -215,14 +188,13 @@ export default function StoriesPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         authorId: user.id, authorName: user.name, authorAvatar: user.avatar || null,
-        content, caption, bgColor, font, imageUrl, music: scTrack || null,
+        content, caption, bgColor, font, imageUrl,
       }),
     })
     const data = await res.json()
     if (data.error) { alert(data.error); setPosting(false); return }
     setContent(''); setCaption(''); setBgColor(BG_COLORS[0].value); setFont('sans')
     setStoryImage(null); setStoryImagePreview(null)
-    setScUrl(''); setScTrack(null); setScErr('')
     setShowCreate(false); setPosting(false)
     loadStories()
   }
@@ -567,39 +539,10 @@ export default function StoriesPage() {
               </div>
               )}
 
-              {/* 음악 첨부 (SoundCloud) — 편집 모드에서는 숨김. 권한 허가된 사용자만. */}
-              {!editing && musicAllowed && (
-              <div className="create-row" style={{ alignItems: 'flex-start' }}>
-                <span className="create-label">음악</span>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <input placeholder="SoundCloud URL" value={scUrl}
-                      onChange={e => { setScUrl(e.target.value); setScErr('') }}
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleScSearch())}
-                      style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 2, padding: '0.35rem 0.6rem', fontSize: '0.78rem', fontFamily: 'var(--font)', color: 'var(--text)', outline: 'none' }} />
-                    <button type="button" className="btn btn-sm" onClick={handleScSearch} disabled={scLoading || !scUrl.trim()}>
-                      {scLoading ? '...' : '검색'}
-                    </button>
-                  </div>
-                  {scErr && <p style={{ fontFamily: 'var(--mono)', fontSize: '0.68rem', color: 'var(--accent)' }}>{scErr}</p>}
-                  {scTrack && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '0.4rem 0.6rem' }}>
-                      {scTrack.thumbnail && <img src={scTrack.thumbnail} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }} />}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'var(--serif)', fontSize: '0.75rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scTrack.title}</div>
-                        <div style={{ fontFamily: 'var(--mono)', fontSize: '0.65rem', color: 'var(--muted)' }}>{scTrack.author}</div>
-                      </div>
-                      <button type="button" onClick={() => { setScTrack(null); setScUrl('') }}
-                        style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.85rem' }}>×</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-              )}
-              {!editing && !musicAllowed && (
-                <div style={{ background:'var(--surface2)', border:'1px dashed var(--border)', borderRadius:6, padding:'.6rem .8rem', fontFamily:'var(--mono)', fontSize:'.72rem', color:'var(--muted)', lineHeight:1.65 }}>
-                  음악 첨부는 관리자가 승인한 사용자만 사용할 수 있어요.
-                  <br/>운영자(@altrofast11x2)에게 메시지로 신청해주세요.
+              {/* 음악 첨부 — 메인 페이지 / 스토리 작성 모달(StoryComposer)의 라이브러리 선택으로 통합됨 */}
+              {!editing && (
+                <div style={{ background:'var(--surface2)', border:'1px dashed var(--border)', borderRadius:6, padding:'.55rem .75rem', fontFamily:'var(--mono)', fontSize:'.7rem', color:'var(--muted)', lineHeight:1.55 }}>
+                  음악을 첨부하려면 메인 페이지의 <strong>스토리 작성</strong> 모달을 이용해주세요.
                 </div>
               )}
 
