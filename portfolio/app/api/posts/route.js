@@ -39,6 +39,20 @@ export async function POST(req) {
 
   if (!title || !content) return Response.json({ error: '제목과 내용을 입력하세요' }, { status: 400 })
 
-  const post = await createPost({ title, content, author, authorId, category, imageUrl })
+  // 음악 첨부 (라이브러리에서 선택된 곡 — 이미 승인된 곡이므로 권한 검증 불필요)
+  let music = null
+  if (body.music && typeof body.music === 'object') {
+    const mUrl = cleanUrl(body.music.url)
+    if (mUrl) {
+      music = {
+        url: mUrl,
+        title:  String(body.music.title || '').slice(0, 80),
+        author: String(body.music.author || '').slice(0, 60),
+        thumbnail: String(body.music.thumbnail || '').slice(0, 500),
+      }
+    }
+  }
+
+  const post = await createPost({ title, content, author, authorId, category, imageUrl, music })
   return Response.json(post, { status: 201 })
 }

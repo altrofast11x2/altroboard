@@ -19,6 +19,10 @@ export default function SettingsPage() {
   const [user, setUser] = useState(null)
   const [language, setLanguage] = useState('ko')
   const [theme, setTheme]       = useState('light')
+  // 계정 공개/비공개
+  const [privateAccount, setPrivateAccount] = useState(false)
+  const [privSaving, setPrivSaving] = useState(false)
+  const [privMsg, setPrivMsg] = useState('')
 
   // 비밀번호 변경
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirm: '' })
@@ -38,7 +42,33 @@ export default function SettingsPage() {
     setUser(u)
     setLanguage(localStorage.getItem('cozyboard_lang') || 'en')
     setTheme(localStorage.getItem('altroboard_theme') || 'light')
+    // 현재 공개/비공개 fetch
+    fetch(`/api/user/${u.id}`).then(r => r.json()).then(d => {
+      setPrivateAccount(!!d?.privateAccount)
+    }).catch(() => {})
   }, [])
+
+  const togglePrivate = async () => {
+    if (!user) return
+    const next = !privateAccount
+    setPrivateAccount(next)
+    setPrivSaving(true); setPrivMsg('')
+    try {
+      const r = await fetch(`/api/user/${user.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, privateAccount: next }),
+      })
+      const d = await r.json()
+      if (!r.ok) { setPrivateAccount(!next); setPrivMsg(d.error || '실패'); return }
+      setPrivMsg(next ? '비공개로 설정되었어요' : '공개로 설정되었어요')
+      setTimeout(() => setPrivMsg(''), 2200)
+    } catch {
+      setPrivateAccount(!next)
+      setPrivMsg('네트워크 오류')
+    } finally {
+      setPrivSaving(false)
+    }
+  }
 
   const saveLanguage = async (newLang) => {
     setLanguage(newLang)
@@ -161,6 +191,47 @@ export default function SettingsPage() {
                 {t.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* 계정 공개/비공개 */}
+        <div className="card card-accent" style={{marginBottom:'1rem'}}>
+          <div className="section-header" style={{marginBottom:'.75rem'}}>
+            <h2 style={{fontSize:'1rem'}}>계정 공개 범위</h2>
+            <p>비공개로 설정하면 팔로워가 아닌 사용자에게 게시글·스토리·팔로우 목록이 가려집니다.</p>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:'.85rem',flexWrap:'wrap'}}>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={privateAccount}
+              onClick={togglePrivate}
+              disabled={privSaving}
+              style={{
+                position:'relative', width:50, height:28, borderRadius:14,
+                background: privateAccount ? 'var(--accent)' : 'var(--border)',
+                border: 'none', cursor: 'pointer', transition:'background .15s',
+                padding: 0, flexShrink:0,
+              }}
+            >
+              <span style={{
+                position:'absolute', top:3, left: privateAccount ? 25 : 3,
+                width:22, height:22, borderRadius:'50%', background:'#fff',
+                transition:'left .15s', boxShadow:'0 1px 3px rgba(0,0,0,.25)',
+              }}/>
+            </button>
+            <div style={{flex:1,minWidth:160}}>
+              <div style={{fontFamily:'var(--mono)',fontSize:'.85rem',fontWeight:700,color:'var(--ink)'}}>
+                {privateAccount ? '🔒 비공개 계정' : '🌐 공개 계정'}
+              </div>
+              <div style={{fontFamily:'var(--mono)',fontSize:'.72rem',color:'var(--muted)',marginTop:'.15rem'}}>
+                {privateAccount
+                  ? '팔로워만 게시글·스토리·팔로우 목록을 볼 수 있어요'
+                  : '누구나 회원님의 게시글과 활동을 볼 수 있어요'
+                }
+              </div>
+            </div>
+            {privMsg && <span style={{fontFamily:'var(--mono)',fontSize:'.72rem',color:'#27ae60'}}>{privMsg}</span>}
           </div>
         </div>
 

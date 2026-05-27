@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 
 const StoryComposer = lazy(() => import('./StoryComposer'))
+const StoryViewer   = lazy(() => import('./StoryViewer'))
 
 // 메인 페이지 상단 스토리 스트립.
 // - 비로그인 사용자에게는 아예 렌더 안 됨
@@ -15,6 +16,7 @@ export default function StoryStrip() {
   const [stories, setStories] = useState([])
   const [user,    setUser]    = useState(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [viewing, setViewing] = useState(null)   // { group, idx }
   const router = useRouter()
   const { t } = useI18n()
 
@@ -31,15 +33,29 @@ export default function StoryStrip() {
 
   if (!user) return null
 
-  // group by author, dedupe
+  // group by author with full stories (viewer 에 넘기기 위해)
   const seen = {}
   const groups = []
   stories.forEach(s => {
     if (!seen[s.authorId]) {
       seen[s.authorId] = true
-      groups.push({ authorId: s.authorId, authorName: s.authorName, authorAvatar: s.authorAvatar, bg: s.bgColor })
+      const g = { authorId: s.authorId, authorName: s.authorName, authorAvatar: s.authorAvatar, bg: s.bgColor, stories: [] }
+      groups.push(g)
+      seen[s.authorId] = g
     }
+    seen[s.authorId].stories.push(s)
   })
+
+  const openViewer = (g) => setViewing({ group: g, idx: 0 })
+  const deleteStory = async (storyId) => {
+    if (!user || !confirm('스토리를 삭제하시겠습니까?')) return
+    await fetch(`/api/stories/${storyId}`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, role: user.role }),
+    }).catch(() => {})
+    setViewing(null)
+    loadStories()
+  }
 
   return (
     <div className="strip-wrap">
@@ -55,7 +71,7 @@ export default function StoryStrip() {
           <span className="strip-name">{t('story.create')}</span>
         </button>
         {groups.slice(0, 10).map(g => (
-          <Link href={`/stories?view=${encodeURIComponent(g.authorId)}`} key={g.authorId} className="strip-item">
+          <button type="button" onClick={() => openViewer(g)} key={g.authorId} className="strip-item strip-btn">
             <div className="strip-bubble" style={{ background: g.bg || '#1a1208' }}>
               {g.authorAvatar
                 ? <img src={g.authorAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
@@ -65,7 +81,7 @@ export default function StoryStrip() {
               }
             </div>
             <span className="strip-name">{g.authorName}</span>
-          </Link>
+          </button>
         ))}
         {groups.length === 0 && (
           <span style={{ fontFamily: 'var(--mono)', fontSize: '0.72rem', color: 'var(--muted)', padding: '0 0.5rem', alignSelf: 'center' }}>
@@ -81,6 +97,19 @@ export default function StoryStrip() {
             user={user}
             onClose={() => setShowCreate(false)}
             onPosted={() => loadStories()}
+          />
+        </Suspense>
+      )}
+
+      {/* 뷰어 모달 — 다른 사람 스토리 클릭 시 바로 표시 */}
+      {viewing && (
+        <Suspense fallback={null}>
+          <StoryViewer
+            group={viewing.group}
+            startIdx={viewing.idx}
+            user={user}
+            onClose={() => setViewing(null)}
+            onDelete={deleteStory}
           />
         </Suspense>
       )}

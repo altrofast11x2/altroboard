@@ -1,8 +1,10 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { compressImageToTarget } from '@/lib/imageCompress'
+
+const MusicPicker = lazy(() => import('../../components/MusicPicker'))
 
 export default function WritePage() {
   const [form, setForm] = useState({ title:'', content:'', category:'일반' })
@@ -11,6 +13,8 @@ export default function WritePage() {
   const [images, setImages] = useState([])
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [music, setMusic] = useState(null)        // 라이브러리 선택 곡
+  const [pickerOpen, setPickerOpen] = useState(false)
   const fileRef = useRef()
   const router = useRouter()
 
@@ -41,6 +45,7 @@ export default function WritePage() {
     }
 
     const user = JSON.parse(localStorage.getItem('user') || '{}')
+    const musicPayload = music ? { url: music.fileUrl, title: music.title, author: music.artist || '', thumbnail: music.coverUrl || '' } : null
     const res = await fetch('/api/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -48,7 +53,8 @@ export default function WritePage() {
         ...form,
         author: user.name || '익명',
         authorId: user.id || user.email || null,
-        imageUrl: imageUrls.length === 1 ? imageUrls[0] : imageUrls.length > 1 ? imageUrls : null
+        imageUrl: imageUrls.length === 1 ? imageUrls[0] : imageUrls.length > 1 ? imageUrls : null,
+        music: musicPayload,
       })
     })
     const data = await res.json()
@@ -103,6 +109,37 @@ export default function WritePage() {
             )}
             {images.length > 0 && <div style={{fontFamily:'var(--mono)',fontSize:'0.72rem',color:'var(--muted)',marginTop:'0.4rem'}}>{images.length}/4장 선택됨</div>}
           </div>
+
+          {/* 음악 첨부 — 라이브러리 선택 */}
+          <div className="form-group">
+            <label>음악 첨부 (선택)</label>
+            {music ? (
+              <div style={{ display:'flex', alignItems:'center', gap:'.5rem', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'.45rem .6rem' }}>
+                {music.coverUrl && <img src={music.coverUrl} alt="" style={{ width:36, height:36, objectFit:'cover', borderRadius:4, flexShrink:0 }}/>}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontFamily:'var(--serif)', fontSize:'.85rem', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{music.title}</div>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'.65rem', color:'var(--muted)' }}>{music.artist || '아티스트 미상'}</div>
+                </div>
+                <button type="button" className="btn btn-sm" onClick={() => setMusic(null)}>제거</button>
+              </div>
+            ) : (
+              <button type="button" className="btn btn-sm" onClick={() => setPickerOpen(o => !o)}>
+                {pickerOpen ? '닫기' : '🎵 라이브러리에서 선택'}
+              </button>
+            )}
+            {pickerOpen && !music && (
+              <div style={{ marginTop:'.5rem', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'.5rem' }}>
+                <Suspense fallback={<div style={{padding:'.5rem',fontFamily:'var(--mono)',fontSize:'.72rem',color:'var(--muted)'}}>로딩 중...</div>}>
+                  <MusicPicker
+                    selected={music}
+                    onSelect={(m) => { setMusic(m); if (m) setPickerOpen(false) }}
+                    compact
+                  />
+                </Suspense>
+              </div>
+            )}
+          </div>
+
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'0.5rem'}}>
             <span style={{fontFamily:'var(--mono)',fontSize:'0.72rem',color:'var(--muted)'}}>Ctrl+Enter로 등록</span>
             <div style={{display:'flex',gap:'0.5rem'}}>

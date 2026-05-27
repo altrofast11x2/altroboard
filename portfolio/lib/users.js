@@ -137,6 +137,7 @@ export async function getUserById(uid) {
     theme: u.theme || 'light',
     verified: !!u.verified,            // 인증 배지 (별)
     musicAllowed: !!u.musicAllowed,    // 음악 업로드 권한 (관리자가 부여)
+    privateAccount: !!u.privateAccount, // 계정 비공개 (true 면 비팔로워에게 컨텐츠 숨김)
     profileMusic: u.profileMusic || null,
   }
 }

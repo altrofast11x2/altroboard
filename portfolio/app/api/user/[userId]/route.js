@@ -68,6 +68,7 @@ export async function PATCH(request, { params }) {
     }
   }
   if (body.language !== undefined) updates.language = cleanEnum(body.language, ['ko', 'en', 'ja'], 'en')
+  if (body.privateAccount !== undefined) updates.privateAccount = !!body.privateAccount
   if (body.theme    !== undefined) updates.theme    = cleanEnum(body.theme, ['light', 'dark', 'auto'], 'light')
 
   await updateUser(userId, updates)
