@@ -173,10 +173,10 @@ export default function AdminUsersPage() {
                           {!isSelf && u.role !== 'owner' && (
                             <button
                               className={`btn btn-sm ${u.musicAllowed ? 'btn-primary' : ''}`}
-                              title={u.musicAllowed ? '음악 업로드 허용됨 — 회수' : '음악 업로드 권한 부여'}
+                              title={u.musicAllowed ? '현재 허용됨 — 클릭하면 권한 회수' : '음악 업로드 권한 부여'}
                               onClick={()=>onToggleMusic(u)}
                             >
-                              {u.musicAllowed ? '🎵 허용' : '🎵 차단'}
+                              {u.musicAllowed ? '🎵 허용됨 (회수)' : '🎵 허용하기'}
                             </button>
                           )}
                         </div>

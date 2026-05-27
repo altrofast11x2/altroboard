@@ -118,13 +118,27 @@ export default function NavBar() {
       // 5분 폴링 — Firebase 트래픽 절감 (이전 60초)
       pollRef.current = setInterval(() => fetchUnread(u.id), 300000)
 
-      // 음악 업로드 권한 — owner/admin 은 즉시, 일반 유저는 fetch
-      if (['owner','admin'].includes(u.role)) setMusicAllowed(true)
-      else {
-        fetch(`/api/user/${u.id}`).then(r => r.json()).then(d => {
-          if (d?.musicAllowed) setMusicAllowed(true)
-        }).catch(()=>{})
-      }
+      // 음악 권한 + 프사 동기화 — fresh user 한 번 fetch
+      fetch(`/api/user/${u.id}`).then(r => r.json()).then(d => {
+        if (!d || d.error) return
+        if (d.musicAllowed || ['owner','admin'].includes(d.role)) setMusicAllowed(true)
+        // localStorage user 와 다른 부분 갱신 (avatar, name, role, verified 등)
+        const merged = {
+          ...u,
+          name: d.name || u.name,
+          avatar: d.avatar !== undefined ? d.avatar : u.avatar,
+          role: d.role || u.role,
+          verified: !!d.verified,
+        }
+        // 변경이 있을 때만 저장
+        if (JSON.stringify(merged) !== raw) {
+          try { localStorage.setItem('user', JSON.stringify(merged)) } catch {}
+          setUser(merged)
+        }
+      }).catch(()=>{
+        // 오프라인이거나 일시 오류 — owner/admin 은 musicAllowed 즉시 부여
+        if (['owner','admin'].includes(u.role)) setMusicAllowed(true)
+      })
     } else {
       setUser(null); setUnread(0)
       if (pollRef.current) clearInterval(pollRef.current)

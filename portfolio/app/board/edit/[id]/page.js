@@ -56,9 +56,10 @@ export default function EditPage({ params }) {
       const d = await res.json()
       if (d.error) { router.push('/board'); return }
 
-      // 본인 글 또는 관리자만 접근
+      // 본인 글 또는 owner/admin 접근
       const userId = parsedUser.id || parsedUser.email
-      if (parsedUser.role !== 'admin' && d.authorId !== userId) {
+      const isStaff = ['owner','admin'].includes(parsedUser.role)
+      if (!isStaff && d.authorId !== userId) {
         alert('수정 권한이 없습니다')
         router.push('/board')
         return

@@ -106,10 +106,12 @@ export default function StoryStrip() {
         <Suspense fallback={null}>
           <StoryViewer
             group={viewing.group}
+            groups={groups}
             startIdx={viewing.idx}
             user={user}
             onClose={() => setViewing(null)}
             onDelete={deleteStory}
+            onNavGroup={(g) => setViewing({ group: g, idx: 0 })}
           />
         </Suspense>
       )}

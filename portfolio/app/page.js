@@ -7,6 +7,7 @@ import { useI18n } from '@/lib/i18n'
 // 무거운 컴포넌트는 lazy load — 초기 페이지 렌더 가속
 const StoryStrip      = lazy(() => import('./components/StoryStrip'))
 const SuggestedUsers  = lazy(() => import('./components/SuggestedUsers'))
+const PostMusic       = lazy(() => import('./components/PostMusic'))
 import VerifiedBadge from './components/VerifiedBadge'
 
 // 인스타그램 스타일 단일 컬럼 피드
@@ -316,6 +317,13 @@ export default function Home() {
                           </svg>
                         </button>
                       </div>
+
+                      {/* 음악 첨부된 경우 자동재생 + mute */}
+                      {p.music?.url && (
+                        <Suspense fallback={null}>
+                          <PostMusic music={p.music} />
+                        </Suspense>
+                      )}
 
                       {/* 좋아요 카운트 + 댓글 링크 (액션바 아래) */}
                       <div className="fp-likes">{count.toLocaleString()} {t('common.likes')}</div>

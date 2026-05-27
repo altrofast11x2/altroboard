@@ -1,7 +1,9 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import Link from 'next/link'
 import { compressVideoSafe, shouldCompress } from '@/lib/videoCompress'
+
+const MusicPicker = lazy(() => import('../components/MusicPicker'))
 
 // ── 인라인 SVG 아이콘 (이모지 대신) ───────────────────────────────
 const Icon = {
@@ -89,6 +91,11 @@ export default function ShortsPage() {
   // 음악 (파일 업로드만)
   const [audioFile,     setAudioFile]     = useState(null)
   const [audioName,     setAudioName]     = useState('')
+  // 라이브러리에서 선택한 음악 (선택 시 파일 업로드 대신 곡 URL 직접 사용)
+  const [pickedMusic,   setPickedMusic]   = useState(null)
+  const [musicTab,      setMusicTab]      = useState('library')  // 'library' | 'file'
+  const [musicAllowed,  setMusicAllowed]  = useState(false)
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false)
 
   const containerRef   = useRef(null)
   const videoFileRef   = useRef(null)
@@ -102,7 +109,17 @@ export default function ShortsPage() {
 
   useEffect(() => {
     const u = localStorage.getItem('user')
-    if (u) setUser(JSON.parse(u))
+    if (u) {
+      const parsed = JSON.parse(u)
+      setUser(parsed)
+      // 음악 직접 업로드 권한 — owner/admin 즉시 / 일반 유저는 fetch
+      if (['owner','admin'].includes(parsed.role)) setMusicAllowed(true)
+      else {
+        fetch(`/api/user/${parsed.id}`).then(r => r.json()).then(d => {
+          if (d?.musicAllowed) setMusicAllowed(true)
+        }).catch(()=>{})
+      }
+    }
     loadShorts()
   }, [])
 
@@ -275,6 +292,7 @@ export default function ShortsPage() {
     setTitle(''); setDesc('')
     setUploadErr(''); setUploadProg(0); setUploadMsg('')
     setAudioFile(null); setAudioName('')
+    setPickedMusic(null); setMusicPickerOpen(false); setMusicTab('library')
     if (videoFileRef.current) videoFileRef.current.value = ''
     if (imageFileRef.current) imageFileRef.current.value = ''
     if (audioFileRef.current) audioFileRef.current.value = ''
@@ -344,10 +362,14 @@ export default function ShortsPage() {
         setUploadProg(100)
       }
 
-      // 음악 파일 업로드
-      if (audioFile) {
+      // 음악 — 1순위: 라이브러리 선택, 2순위: 직접 업로드 (musicAllowed 만)
+      if (pickedMusic) {
+        audioUrl = pickedMusic.fileUrl
+        audioTitle = pickedMusic.title + (pickedMusic.artist ? ` · ${pickedMusic.artist}` : '')
+      } else if (audioFile && musicAllowed) {
         setUploadMsg('오디오 업로드 중...')
         const afd = new FormData(); afd.append('file', audioFile)
+        // shorts 의 직접 업로드는 기존 /api/upload-audio 경로 사용
         const ar = await fetch('/api/upload-audio', { method: 'POST', body: afd })
         const ad = await ar.json()
         if (ar.ok && ad.url) { audioUrl = ad.url; audioTitle = audioName }
@@ -705,18 +727,70 @@ export default function ShortsPage() {
               <textarea className="upload-textarea" rows={2} placeholder="간단한 설명" value={desc} onChange={e => setDesc(e.target.value)} maxLength={150}/>
             </div>
 
-            {/* 배경음악 (파일 업로드만) */}
+            {/* 배경음악 — 라이브러리 선택 + (권한자만) 직접 업로드 탭 */}
             <div className="music-panel">
               <div className="music-panel-title">배경음악 (선택)</div>
-              <button className="btn btn-sm" onClick={() => audioFileRef.current?.click()}>
-                {audioName ? `${audioName.slice(0,25)}${audioName.length>25?'...':''}` : '음악 파일 선택 (mp3/wav · 10MB)'}
-              </button>
-              {audioName && (
-                <button style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',marginLeft:'0.4rem'}}
-                  onClick={() => { setAudioFile(null); setAudioName('') }}>✕</button>
+
+              {/* 선택된 곡 표시 */}
+              {pickedMusic ? (
+                <div style={{ display:'flex', alignItems:'center', gap:'.5rem', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:6, padding:'.45rem .6rem', marginBottom:'.5rem' }}>
+                  {pickedMusic.coverUrl && <img src={pickedMusic.coverUrl} alt="" style={{ width:32, height:32, objectFit:'cover', borderRadius:4 }}/>}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontFamily:'var(--serif)', fontSize:'.8rem', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pickedMusic.title}</div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'.65rem', color:'var(--muted)' }}>{pickedMusic.artist || '아티스트 미상'}</div>
+                  </div>
+                  <button type="button" className="btn btn-sm" onClick={() => setPickedMusic(null)}>제거</button>
+                </div>
+              ) : audioName ? (
+                <div style={{ display:'flex', alignItems:'center', gap:'.5rem', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:6, padding:'.45rem .6rem', marginBottom:'.5rem' }}>
+                  <span style={{ fontFamily:'var(--mono)', fontSize:'.78rem', color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
+                    {audioName}
+                  </span>
+                  <button type="button" className="btn btn-sm" onClick={() => { setAudioFile(null); setAudioName('') }}>제거</button>
+                </div>
+              ) : (
+                <>
+                  {/* 탭 */}
+                  <div style={{ display:'flex', gap:'.3rem', marginBottom:'.5rem' }}>
+                    <button type="button" className={`btn btn-sm ${musicTab==='library'?'btn-primary':''}`} onClick={() => setMusicTab('library')}>라이브러리</button>
+                    {musicAllowed && (
+                      <button type="button" className={`btn btn-sm ${musicTab==='file'?'btn-primary':''}`} onClick={() => setMusicTab('file')}>직접 업로드</button>
+                    )}
+                  </div>
+
+                  {musicTab === 'library' && (
+                    <>
+                      <button type="button" className="btn btn-sm" onClick={() => setMusicPickerOpen(o => !o)}>
+                        {musicPickerOpen ? '닫기' : '🎵 라이브러리에서 선택'}
+                      </button>
+                      {musicPickerOpen && (
+                        <div style={{ marginTop:'.5rem', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:8, padding:'.5rem' }}>
+                          <Suspense fallback={<div style={{padding:'.5rem',fontFamily:'var(--mono)',fontSize:'.72rem',color:'var(--muted)'}}>로딩 중...</div>}>
+                            <MusicPicker
+                              selected={pickedMusic}
+                              onSelect={(m) => { setPickedMusic(m); if (m) setMusicPickerOpen(false) }}
+                              compact
+                            />
+                          </Suspense>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {musicTab === 'file' && musicAllowed && (
+                    <>
+                      <button type="button" className="btn btn-sm" onClick={() => audioFileRef.current?.click()}>
+                        음악 파일 선택 (mp3/wav · 10MB)
+                      </button>
+                      <input ref={audioFileRef} type="file" accept="audio/*" style={{display:'none'}}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) { if (f.size > 10*1024*1024) alert('10MB 이하만 가능합니다'); else { setAudioFile(f); setAudioName(f.name) } } }}/>
+                      <p style={{ fontFamily:'var(--mono)', fontSize:'.65rem', color:'var(--muted)', marginTop:'.3rem', lineHeight:1.5 }}>
+                        업로드한 파일은 즉시 첨부됩니다 (검토 없음). 본인 권리가 있는 곡만.
+                      </p>
+                    </>
+                  )}
+                </>
               )}
-              <input ref={audioFileRef} type="file" accept="audio/*" style={{display:'none'}}
-                onChange={e => { const f = e.target.files?.[0]; if (f) { if (f.size > 10*1024*1024) alert('10MB 이하만 가능합니다'); else { setAudioFile(f); setAudioName(f.name) } } }}/>
             </div>
 
             {uploading && (

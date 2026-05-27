@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ReportButton from '../../components/ReportButton'
 import VerifiedBadge from '../../components/VerifiedBadge'
+import PostMusic from '../../components/PostMusic'
 
 export default function PostPage({ params }) {
   const [post, setPost] = useState(null)
@@ -133,6 +134,13 @@ export default function PostPage({ params }) {
                 <img key={i} src={url} alt={`이미지 ${i+1}`}
                   onClick={()=>{const lb=document.createElement('div');lb.className='lightbox';lb.onclick=()=>lb.remove();const im=document.createElement('img');im.src=url;lb.appendChild(im);document.body.appendChild(lb)}} />
               ))}
+            </div>
+          )}
+
+          {/* 음악 첨부 */}
+          {post.music?.url && (
+            <div style={{ margin: '1rem -1rem 0' }}>
+              <PostMusic music={post.music} />
             </div>
           )}
 

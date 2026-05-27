@@ -7,15 +7,17 @@ import Link from 'next/link'
 //
 // props:
 //   - group: { authorId, authorName, authorAvatar, stories: [...] }
+//   - groups?: 모든 그룹 (옆 미리보기용)
 //   - startIdx: 시작 인덱스
 //   - user: 현재 사용자
 //   - onClose: () => void
 //   - onDelete?: (storyId) => void
 //   - onEdit?: (story) => void
+//   - onNavGroup?: (newGroup) => void (옆 카드 클릭 시)
 
 const fontClass = { sans: 'var(--font)', serif: 'var(--serif)', mono: 'var(--mono)' }
 
-export default function StoryViewer({ group, startIdx = 0, user, onClose, onDelete, onEdit }) {
+export default function StoryViewer({ group, groups = [], startIdx = 0, user, onClose, onDelete, onEdit, onNavGroup }) {
   const [idx, setIdx] = useState(startIdx)
   const [progKey, setProgKey] = useState(0)
   const [muted, setMuted] = useState(true)   // 기본 mute (브라우저 자동재생 정책)
@@ -85,8 +87,35 @@ export default function StoryViewer({ group, startIdx = 0, user, onClose, onDele
 
   if (!group || !story) return null
 
+  // 인접 그룹 (이전/다음 사용자) — Instagram 옆 미리보기용
+  const curGroupIdx = groups.findIndex(g => g.authorId === group.authorId)
+  const prevGroup = curGroupIdx > 0 ? groups[curGroupIdx - 1] : null
+  const nextGroup = curGroupIdx >= 0 && curGroupIdx < groups.length - 1 ? groups[curGroupIdx + 1] : null
+
   return (
     <div className="sv-overlay" onClick={onClose}>
+      {/* 좌측 닫기 X — Instagram 처럼 화면 우상단 */}
+      <button className="sv-overlay-close" onClick={onClose} aria-label="닫기">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+
+      {/* 이전 그룹 카드 (왼쪽) */}
+      {prevGroup && (
+        <div className="sv-side sv-side-left" onClick={(e) => { e.stopPropagation(); onNavGroup?.(prevGroup) }}>
+          <div className="sv-side-card" style={{ background: prevGroup.bg || prevGroup.stories?.[0]?.bgColor || '#1a1208' }}>
+            <div className="sv-side-overlay">
+              {prevGroup.authorAvatar
+                ? <img src={prevGroup.authorAvatar} alt="" className="sv-side-av"/>
+                : <div className="sv-side-av sv-side-av-ph">{(prevGroup.authorName || '?')[0].toUpperCase()}</div>
+              }
+              <div className="sv-side-name">{prevGroup.authorName}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="sv-card" style={{ background: story.bgColor || '#1a1208' }} onClick={e => e.stopPropagation()}>
         {/* progress bars */}
         <div className="sv-progress">
@@ -178,6 +207,24 @@ export default function StoryViewer({ group, startIdx = 0, user, onClose, onDele
         {/* tap zones */}
         <div className="sv-tap-left"  onClick={prev}/>
         <div className="sv-tap-right" onClick={next}/>
+      </div>
+
+      {/* 다음 그룹 카드 (오른쪽) */}
+      {nextGroup && (
+        <div className="sv-side sv-side-right" onClick={(e) => { e.stopPropagation(); onNavGroup?.(nextGroup) }}>
+          <div className="sv-side-card" style={{ background: nextGroup.bg || nextGroup.stories?.[0]?.bgColor || '#1a1208' }}>
+            <div className="sv-side-overlay">
+              {nextGroup.authorAvatar
+                ? <img src={nextGroup.authorAvatar} alt="" className="sv-side-av"/>
+                : <div className="sv-side-av sv-side-av-ph">{(nextGroup.authorName || '?')[0].toUpperCase()}</div>
+              }
+              <div className="sv-side-name">{nextGroup.authorName}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{display:'none'}}>{/* end placeholder for original closing */}
 
         <style jsx>{`
           .sv-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:8000;display:flex;align-items:center;justify-content:center;padding:1rem;}
@@ -198,8 +245,28 @@ export default function StoryViewer({ group, startIdx = 0, user, onClose, onDele
           .sv-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1.5rem;position:relative;z-index:1;}
           .sv-text{color:#fff;font-size:1.25rem;line-height:1.75;text-align:center;word-break:break-word;white-space:pre-wrap;text-shadow:0 1px 4px rgba(0,0,0,.5);position:relative;z-index:1;}
           .sv-caption{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);max-width:85%;color:#fff;font-size:1.1rem;font-weight:600;text-align:center;padding:.5rem .9rem;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);border-radius:8px;word-break:break-word;text-shadow:0 1px 3px rgba(0,0,0,.6);z-index:2;}
-          .sv-music-pill{position:absolute;left:50%;bottom:1.2rem;transform:translateX(-50%);display:flex;align-items:center;gap:.4rem;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);border-radius:999px;padding:.35rem .7rem;color:#fff;font-family:var(--mono);font-size:.7rem;max-width:80%;z-index:3;}
-          .sv-music-pill img{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;}
+          /* 음악 pill — 사용자 요청대로 더 투명하게 (0.55 → 0.28) */
+          .sv-music-pill{position:absolute;left:50%;bottom:1.2rem;transform:translateX(-50%);display:flex;align-items:center;gap:.4rem;background:rgba(0,0,0,.28);backdrop-filter:blur(8px);border-radius:999px;padding:.3rem .7rem;color:rgba(255,255,255,.92);font-family:var(--mono);font-size:.68rem;max-width:80%;z-index:3;}
+          .sv-music-pill img{width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0;opacity:.85;}
+
+          /* 옆 사용자 미리보기 카드 (Instagram 스타일) */
+          .sv-side{position:relative;cursor:pointer;flex-shrink:0;}
+          .sv-side-card{width:min(180px,18vw);height:min(280px,55vh);border-radius:12px;overflow:hidden;opacity:.55;transition:opacity .15s, transform .15s;position:relative;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+          .sv-side:hover .sv-side-card{opacity:.85;transform:scale(1.02);}
+          .sv-side-left{margin-right:.6rem;}
+          .sv-side-right{margin-left:.6rem;}
+          .sv-side-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 50%,rgba(0,0,0,.55) 100%);display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:.85rem;gap:.4rem;}
+          .sv-side-av{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid #fff;}
+          .sv-side-av-ph{background:var(--accent);color:#fff;font-family:var(--serif);font-weight:700;font-size:1rem;display:flex;align-items:center;justify-content:center;}
+          .sv-side-name{color:#fff;font-family:var(--mono);font-size:.72rem;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+
+          /* Instagram 같이 우상단 닫기 */
+          .sv-overlay-close{position:fixed;top:1.2rem;right:1.2rem;background:none;border:none;color:#fff;cursor:pointer;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:.85;transition:opacity .15s;z-index:8100;}
+          .sv-overlay-close:hover{opacity:1;background:rgba(255,255,255,.08);}
+
+          @media(max-width:760px){
+            .sv-side{display:none;}
+          }
           .sv-music-marquee{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
           .sv-tap-left{position:absolute;left:0;top:0;width:35%;height:100%;z-index:3;cursor:pointer;}
           .sv-tap-right{position:absolute;right:0;top:0;width:35%;height:100%;z-index:3;cursor:pointer;}

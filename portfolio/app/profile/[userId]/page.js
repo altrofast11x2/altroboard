@@ -138,6 +138,22 @@ export default function ProfilePage({ params }) {
           </div>
         </div>
 
+        {/* 비공개 계정 가드 — 본인/스태프/팔로워가 아니면 게시글 숨김 */}
+        {profileUser?.privateAccount && !isSelf && !isFollowing && !['owner','admin'].includes(currentUser?.role) ? (
+          <div className="card" style={{ textAlign:'center', padding:'3rem 1.5rem', color:'var(--muted)' }}>
+            <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:72, height:72, borderRadius:'50%', border:'2px solid var(--text)', marginBottom:'1rem' }}>
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <h3 style={{ fontFamily:'var(--serif)', fontSize:'1.2rem', color:'var(--ink)', marginBottom:'.5rem' }}>비공개 계정입니다</h3>
+            <p style={{ fontFamily:'var(--mono)', fontSize:'.82rem', lineHeight:1.65 }}>
+              이 계정의 게시글을 보려면 팔로우 후 승인이 필요합니다.<br/>
+              팔로우 요청을 보내보세요.
+            </p>
+          </div>
+        ) : (
+          <>
         {/* Posts */}
         <div className="section-header"><h2>작성한 게시글</h2><p>{posts.length}개의 글</p></div>
 
@@ -168,6 +184,8 @@ export default function ProfilePage({ params }) {
               </tbody>
             </table>
           </div>
+        )}
+          </>
         )}
       </div>
     </main>
