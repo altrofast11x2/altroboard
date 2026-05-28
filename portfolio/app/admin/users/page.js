@@ -164,10 +164,13 @@ export default function AdminUsersPage() {
                               {isSelf ? '본인 계정' : u.role === 'owner' ? '보호됨' : '권한 부족'}
                             </span>
                           )}
-                          {isOwner && !isSelf && u.role !== 'owner' && (
+                          {/* Owner 전용 액션 — 본인 제외. 다른 owner 도 변경 가능 (권한 회수용). */}
+                          {isOwner && !isSelf && (
                             <>
                               <button className="btn btn-sm" onClick={()=>onSetRole(u)}>등급</button>
-                              <button className="btn btn-danger btn-sm" style={{borderColor:'#7f0000'}} onClick={()=>onPurgeNow(u)}>즉시삭제</button>
+                              {u.role !== 'owner' && (
+                                <button className="btn btn-danger btn-sm" style={{borderColor:'#7f0000'}} onClick={()=>onPurgeNow(u)}>즉시삭제</button>
+                              )}
                             </>
                           )}
                           {!isSelf && u.role !== 'owner' && (
