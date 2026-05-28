@@ -69,6 +69,8 @@ export default function MusicUploadPage() {
   }
   useEffect(() => () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null } }, [])
 
+  const isStaff = user && ['owner','admin'].includes(user.role)
+
   const submit = async () => {
     if (!user || !file || !title.trim()) {
       setMsg({ type:'error', text:'제목과 음악 파일은 필수입니다.' }); return
@@ -78,40 +80,61 @@ export default function MusicUploadPage() {
       // 1) 커버 업로드 (선택)
       let coverUrl = null
       if (cover) {
-        const fd = new FormData(); fd.append('file', cover); fd.append('userId', user.id)
-        const r = await fetch('/api/music/upload-cover', { method:'POST', body: fd })
-        const d = await r.json()
-        if (!r.ok) { setMsg({ type:'error', text:d.error || '커버 업로드 실패' }); setSubmitting(false); return }
-        coverUrl = d.url
+        try {
+          const fd = new FormData(); fd.append('file', cover); fd.append('userId', user.id)
+          const r = await fetch('/api/music/upload-cover', { method:'POST', body: fd })
+          const d = await r.json().catch(() => ({}))
+          if (!r.ok) { setMsg({ type:'error', text:`[1/3 커버] ${d.error || `HTTP ${r.status}`}` }); setSubmitting(false); return }
+          coverUrl = d.url
+        } catch (e) {
+          setMsg({ type:'error', text:`[1/3 커버] 네트워크 — ${e?.message || '연결 실패'}` })
+          setSubmitting(false); return
+        }
       }
+
       // 2) 파일 업로드
-      const fd2 = new FormData(); fd2.append('file', file); fd2.append('userId', user.id)
-      const r2 = await fetch('/api/music/upload-file', { method:'POST', body: fd2 })
-      const d2 = await r2.json()
-      if (!r2.ok) { setMsg({ type:'error', text:d2.error || '음악 파일 업로드 실패' }); setSubmitting(false); return }
+      let fileUrl = null
+      try {
+        const fd2 = new FormData(); fd2.append('file', file); fd2.append('userId', user.id)
+        const r2 = await fetch('/api/music/upload-file', { method:'POST', body: fd2 })
+        const d2 = await r2.json().catch(() => ({}))
+        if (!r2.ok) { setMsg({ type:'error', text:`[2/3 파일] ${d2.error || `HTTP ${r2.status}`}` }); setSubmitting(false); return }
+        fileUrl = d2.url
+      } catch (e) {
+        setMsg({ type:'error', text:`[2/3 파일] 네트워크 — ${e?.message || '연결 실패'}` })
+        setSubmitting(false); return
+      }
 
-      // 3) 메타데이터 저장 → status: pending
-      const r3 = await fetch('/api/music', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          uploaderId: user.id,
-          title: title.trim(),
-          artist: artist.trim(),
-          coverUrl,
-          fileUrl: d2.url,
-        }),
-      })
-      const d3 = await r3.json()
-      if (!r3.ok) { setMsg({ type:'error', text:d3.error || '저장 실패' }); setSubmitting(false); return }
+      // 3) 메타데이터 저장
+      try {
+        const r3 = await fetch('/api/music', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            uploaderId: user.id,
+            title: title.trim(),
+            artist: artist.trim(),
+            coverUrl,
+            fileUrl,
+          }),
+        })
+        const d3 = await r3.json().catch(() => ({}))
+        if (!r3.ok) { setMsg({ type:'error', text:`[3/3 저장] ${d3.error || `HTTP ${r3.status}`}` }); setSubmitting(false); return }
 
-      setMsg({ type:'ok', text:'업로드 완료! 관리자 검토 후 라이브러리에 등록됩니다.' })
-      setTitle(''); setArtist('')
-      setCover(null); setCoverPreview(null)
-      setFile(null)
-      if (coverRef.current) coverRef.current.value = ''
-      if (fileRef.current)  fileRef.current.value  = ''
-    } catch (e) {
-      setMsg({ type:'error', text:'네트워크 오류' })
+        setMsg({
+          type:'ok',
+          text: isStaff
+            ? '업로드 완료! 관리자라 자동 승인되어 라이브러리에 즉시 등록되었습니다.'
+            : '업로드 완료! 관리자 검토 후 라이브러리에 등록됩니다.',
+        })
+        setTitle(''); setArtist('')
+        setCover(null); setCoverPreview(null)
+        setFile(null)
+        if (coverRef.current) coverRef.current.value = ''
+        if (fileRef.current)  fileRef.current.value  = ''
+      } catch (e) {
+        setMsg({ type:'error', text:`[3/3 저장] 네트워크 — ${e?.message || '연결 실패'}` })
+        setSubmitting(false); return
+      }
     } finally {
       setSubmitting(false)
     }
@@ -199,12 +222,14 @@ export default function MusicUploadPage() {
           )}
 
           <button className="btn btn-primary" onClick={submit} disabled={submitting || !file || !title.trim()}>
-            {submitting ? '업로드 중...' : '업로드 (관리자 검토 대기)'}
+            {submitting ? '업로드 중...' : (isStaff ? '업로드 (자동 승인)' : '업로드 (관리자 검토 대기)')}
           </button>
 
           <p style={{ fontFamily:'var(--mono)', fontSize:'.7rem', color:'var(--muted)', marginTop:'1rem', lineHeight:1.7 }}>
-            업로드한 음원은 운영자가 저작권 / 부적절 콘텐츠 여부를 확인 후 승인 또는 거절합니다.<br/>
-            본인이 권리를 가진 곡, 또는 라이선스가 허용된 곡만 업로드해주세요.
+            {isStaff
+              ? '관리자 권한이라 검토 없이 즉시 라이브러리에 등록됩니다. 저작권을 본인이 책임지세요.'
+              : '업로드한 음원은 운영자가 저작권 / 부적절 콘텐츠 여부를 확인 후 승인 또는 거절합니다. 본인이 권리를 가진 곡, 또는 라이선스가 허용된 곡만 업로드해주세요.'
+            }
           </p>
         </div>
       </div>

@@ -9,7 +9,8 @@ import Link from 'next/link'
 
 export default function MusicLibraryPage() {
   const [user, setUser] = useState(null)
-  const [list, setList] = useState([])
+  const [list, setList] = useState([])           // approved 곡들
+  const [myUploads, setMyUploads] = useState([]) // 본인 업로드 전부 (status 무관)
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [playingId, setPlayingId] = useState(null)
@@ -17,12 +18,21 @@ export default function MusicLibraryPage() {
 
   useEffect(() => {
     const raw = typeof window !== 'undefined' && localStorage.getItem('user')
-    if (raw) setUser(JSON.parse(raw))
-    fetch('/api/music?status=approved')
-      .then(r => r.json())
-      .then(d => setList(Array.isArray(d) ? d : []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    const u = raw ? JSON.parse(raw) : null
+    if (u) setUser(u)
+
+    const tasks = [
+      fetch('/api/music?status=approved').then(r => r.json()).then(d => setList(Array.isArray(d) ? d : [])).catch(() => {}),
+    ]
+    if (u) {
+      tasks.push(
+        fetch(`/api/music?status=all&uploaderId=${encodeURIComponent(u.id)}&actorId=${encodeURIComponent(u.id)}`)
+          .then(r => r.json())
+          .then(d => setMyUploads(Array.isArray(d) ? d : []))
+          .catch(() => {})
+      )
+    }
+    Promise.all(tasks).finally(() => setLoading(false))
   }, [])
 
   const togglePlay = (m) => {
@@ -67,6 +77,54 @@ export default function MusicLibraryPage() {
             style={{ maxWidth: 320 }}
           />
         </div>
+
+        {/* 내 업로드 섹션 — 본인 업로드 (status 무관) 표시 */}
+        {user && myUploads.length > 0 && (
+          <div style={{ marginBottom:'2rem' }}>
+            <div style={{ display:'flex', alignItems:'baseline', gap:'.6rem', marginBottom:'.6rem' }}>
+              <h3 style={{ fontFamily:'var(--serif)', fontSize:'1rem', color:'var(--ink)' }}>내 업로드</h3>
+              <span style={{ fontFamily:'var(--mono)', fontSize:'.72rem', color:'var(--muted)' }}>
+                {myUploads.length}개 · 대기 {myUploads.filter(m => m.status === 'pending').length} ·
+                {' '}승인 {myUploads.filter(m => m.status === 'approved').length} ·
+                {' '}거절 {myUploads.filter(m => m.status === 'rejected').length}
+              </span>
+            </div>
+            <div className="music-grid">
+              {myUploads.map(m => (
+                <div key={m.id} className="music-card" style={{ position:'relative' }}>
+                  <div style={{
+                    position:'absolute', top:6, left:6, zIndex:2,
+                    fontFamily:'var(--mono)', fontSize:'.6rem', fontWeight:700, padding:'.15rem .45rem',
+                    borderRadius:10, color:'#fff',
+                    background: m.status === 'approved' ? '#27ae60' : m.status === 'rejected' ? '#e74c3c' : '#f1c40f',
+                  }}>
+                    {m.status === 'approved' ? '승인됨' : m.status === 'rejected' ? '거절됨' : '검토 중'}
+                  </div>
+                  <div className="music-cover">
+                    {m.coverUrl
+                      ? <img src={m.coverUrl} alt={m.title}/>
+                      : <div className="music-cover-ph">
+                          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        </div>
+                    }
+                    <button className="music-play" onClick={() => togglePlay(m)} aria-label={playingId === m.id ? '일시정지' : '재생'}>
+                      {playingId === m.id
+                        ? <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
+                        : <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                      }
+                    </button>
+                  </div>
+                  <div className="music-meta">
+                    <div className="music-title">{m.title}</div>
+                    <div className="music-artist">{m.artist || '아티스트 미상'}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ height:'1px', background:'var(--border)', margin:'1.5rem 0' }}/>
+            <h3 style={{ fontFamily:'var(--serif)', fontSize:'1rem', color:'var(--ink)', marginBottom:'.6rem' }}>전체 라이브러리</h3>
+          </div>
+        )}
 
         {loading ? (
           <div className="card" style={{ textAlign:'center', padding:'3rem', color:'var(--muted)', fontFamily:'var(--mono)' }}>불러오는 중...</div>
