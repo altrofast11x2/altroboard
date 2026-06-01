@@ -41,11 +41,11 @@ const I = {
 // "Altro 다른 앱" 그룹 — Instagram 의 "Meta의 다른 앱" 패턴
 // external:true 인 항목은 새 탭으로 열림 (다른 서비스)
 const OTHER_APPS = [
-  { label: '게임',     href: '/games',                          icon: <I.Games width={20} height={20}/> },
-  { label: '학습',     href: '/study',                          icon: <I.Study width={20} height={20}/> },
-  { label: '외부데이터', href: '/data',                           icon: <I.Data  width={20} height={20}/> },
-  { label: '쇼핑몰',   href: 'https://altroshop.vercel.app/',   icon: <I.Shop  width={20} height={20}/>, external: true },
-  { label: '할 일',    href: 'https://altrotodo.vercel.app/',   icon: <I.Todo  width={20} height={20}/>, external: true },
+  { label: '게임',          href: '/games',                              icon: <I.Games width={20} height={20}/> },
+  { label: '학습',          href: '/study',                              icon: <I.Study width={20} height={20}/> },
+  { label: 'AltroDashboard', href: 'https://altrodashboard.vercel.app/', icon: <I.Data  width={20} height={20}/>, external: true },
+  { label: '쇼핑몰',        href: 'https://altroshop.vercel.app/',       icon: <I.Shop  width={20} height={20}/>, external: true },
+  { label: '할 일',         href: 'https://altrotodo.vercel.app/',       icon: <I.Todo  width={20} height={20}/>, external: true },
 ]
 
 // 다국어 — lib/i18n.js 의 useI18n() hook 사용. 텍스트는 t('nav.home') 형태로.
